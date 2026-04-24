@@ -7,11 +7,23 @@ def test_vhost_symlink_resolution():
     """
     Verify that the vhost binary can find its lib directory when called via a symlink.
     """
-    project_root = Path(__file__).resolve().parent.parent.parent
-    vhost_bin = project_root / "src" / "bin" / "vhost"
+    # Find the deliverable root (where bin/ and lib/ live)
+    current = Path(__file__).resolve().parent
+    deliverable_root = None
+    while current != current.root:
+        if (current / "bin").exists() and (current / "lib").exists():
+            deliverable_root = current
+            break
+        current = current.parent
+    
+    if not deliverable_root:
+        # Fallback to parent of tests/ if not found
+        deliverable_root = Path(__file__).resolve().parent.parent
+        
+    vhost_bin = deliverable_root / "bin" / "vhost"
 
     # Create a temporary directory for the symlink
-    tmp_bin_dir = project_root / "src" / "tests" / "tmp_bin"
+    tmp_bin_dir = deliverable_root / "tests" / "tmp_bin"
     tmp_bin_dir.mkdir(exist_ok=True)
     symlink_path = tmp_bin_dir / "vhost_symlink"
 
@@ -48,8 +60,19 @@ def test_installer_scripts_existence():
     """
     Verify that install.sh and uninstall.sh exist in the root.
     """
-    project_root = Path(__file__).resolve().parent.parent
-    assert (project_root / "install.sh").exists()
-    assert (project_root / "uninstall.sh").exists()
-    assert os.access(project_root / "install.sh", os.X_OK)
-    assert os.access(project_root / "uninstall.sh", os.X_OK)
+    # Find the deliverable root
+    current = Path(__file__).resolve().parent
+    deliverable_root = None
+    while current != current.root:
+        if (current / "install.sh").exists():
+            deliverable_root = current
+            break
+        current = current.parent
+    
+    if not deliverable_root:
+        deliverable_root = Path(__file__).resolve().parent.parent
+
+    assert (deliverable_root / "install.sh").exists()
+    assert (deliverable_root / "uninstall.sh").exists()
+    assert os.access(deliverable_root / "install.sh", os.X_OK)
+    assert os.access(deliverable_root / "uninstall.sh", os.X_OK)

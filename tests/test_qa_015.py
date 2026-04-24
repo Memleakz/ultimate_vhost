@@ -407,14 +407,21 @@ class TestMainEnableDisableEarlyExit:
 # README documentation — acceptance criteria verification
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+# Find the deliverable root
+def _get_deliverable_root():
+    current = Path(__file__).resolve().parent
+    while current != current.root:
+        if (current / "bin").exists() and (current / "lib").exists():
+            return current
+        current = current.parent
+    return Path(__file__).resolve().parent.parent
 
+_DELIVERABLE_ROOT = _get_deliverable_root()
 
 @pytest.mark.parametrize(
     "readme_path",
     [
-        _PROJECT_ROOT / "README.md",
-        _PROJECT_ROOT / "src" / "README.md",
+        _DELIVERABLE_ROOT / "README.md",
     ],
 )
 def test_readme_contains_manual_installation_section(readme_path):
@@ -429,8 +436,7 @@ def test_readme_contains_manual_installation_section(readme_path):
 @pytest.mark.parametrize(
     "readme_path",
     [
-        _PROJECT_ROOT / "README.md",
-        _PROJECT_ROOT / "src" / "README.md",
+        _DELIVERABLE_ROOT / "README.md",
     ],
 )
 def test_readme_manual_installation_has_five_steps(readme_path):
@@ -451,8 +457,7 @@ def test_readme_manual_installation_has_five_steps(readme_path):
 @pytest.mark.parametrize(
     "readme_path",
     [
-        _PROJECT_ROOT / "README.md",
-        _PROJECT_ROOT / "src" / "README.md",
+        _DELIVERABLE_ROOT / "README.md",
     ],
 )
 def test_readme_contains_server_support_clarification(readme_path):
@@ -466,8 +471,7 @@ def test_readme_contains_server_support_clarification(readme_path):
 @pytest.mark.parametrize(
     "readme_path",
     [
-        _PROJECT_ROOT / "README.md",
-        _PROJECT_ROOT / "src" / "README.md",
+        _DELIVERABLE_ROOT / "README.md",
     ],
 )
 def test_readme_references_install_sh(readme_path):
