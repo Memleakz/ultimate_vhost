@@ -1,0 +1,57 @@
+{# ---
+variables:
+  - name: domain
+    description: "The fully-qualified domain name for the virtual host."
+  - name: port
+    description: "HTTP port the VirtualHost block listens on."
+    default: "80"
+  - name: node_port
+    description: "Port the Node.js process is listening on."
+    default: "3000"
+  - name: node_socket
+    description: "Unix Domain Socket path for the Node.js process. Overrides node_port when set."
+    default: null
+  - name: os_family
+    description: "OS family used to resolve distribution-specific log directory paths."
+--- #}
+{% if domain.startswith('www.') %}
+{% set redirect_domain = domain[4:] %}
+{% else %}
+{% set redirect_domain = 'www.' ~ domain %}
+{% endif %}
+
+# ============================================================
+# Node.js Reverse Proxy — {{ domain }}
+# Requires: mod_proxy, mod_proxy_http (and mod_proxy_wstunnel
+#           for WebSocket support).
+# ============================================================
+<VirtualHost *:{{ port }}>
+    ServerName {{ domain }}
+
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "http"
+
+    {% if node_socket %}
+    ProxyPass / unix:{{ node_socket }}|http://localhost/
+    ProxyPassReverse / unix:{{ node_socket }}|http://localhost/
+    {% else %}
+    ProxyPass / http://127.0.0.1:{{ node_port }}/
+    ProxyPassReverse / http://127.0.0.1:{{ node_port }}/
+    {% endif %}
+
+    {% if os_family == 'rhel_family' %}
+    ErrorLog /var/log/httpd/{{ domain }}-error.log
+    CustomLog /var/log/httpd/{{ domain }}-access.log combined
+    {% else %}
+    ErrorLog ${APACHE_LOG_DIR}/{{ domain }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ domain }}-access.log combined
+    {% endif %}
+</VirtualHost>
+
+# ============================================================
+# Canonical redirect: {{ redirect_domain }} → {{ domain }} (301)
+# ============================================================
+<VirtualHost *:{{ port }}>
+    ServerName {{ redirect_domain }}
+    Redirect permanent / http://{{ domain }}{% if port != 80 and port != 443 %}:{{ port }}{% endif %}/
+</VirtualHost>

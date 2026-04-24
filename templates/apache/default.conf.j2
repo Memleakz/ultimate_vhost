@@ -1,0 +1,63 @@
+{# Determine canonical redirect counterpart #}
+{% if domain.startswith('www.') %}
+{% set redirect_domain = domain[4:] %}
+{% else %}
+{% set redirect_domain = 'www.' ~ domain %}
+{% endif %}
+
+# ============================================================
+# Main server block — {{ domain }}
+# ============================================================
+<VirtualHost *:{{ port }}>
+    ServerName {{ domain }}
+    DocumentRoot "{{ document_root }}"
+
+    <Directory "{{ document_root }}">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    {% if runtime == 'php' %}
+    DirectoryIndex index.php index.html
+    <FilesMatch \.php$>
+        {% if php_socket.startswith('/') %}
+        SetHandler "proxy:unix:{{ php_socket }}|fcgi://localhost"
+        {% else %}
+        SetHandler "proxy:{{ php_socket }}"
+        {% endif %}
+    </FilesMatch>
+    {% elif runtime == 'python' %}
+    ProxyPreserveHost On
+    ProxyPass / http://127.0.0.1:{{ python_port }}/
+    ProxyPassReverse / http://127.0.0.1:{{ python_port }}/
+    {% elif runtime == 'nodejs' %}
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "http"
+    {% if node_socket %}
+    ProxyPass / unix:{{ node_socket }}|http://localhost/
+    ProxyPassReverse / unix:{{ node_socket }}|http://localhost/
+    {% else %}
+    ProxyPass / http://127.0.0.1:{{ node_port }}/
+    ProxyPassReverse / http://127.0.0.1:{{ node_port }}/
+    {% endif %}
+    {% else %}
+    DirectoryIndex index.html
+    {% endif %}
+
+    {% if os_family == 'rhel_family' %}
+    ErrorLog /var/log/httpd/{{ domain }}-error.log
+    CustomLog /var/log/httpd/{{ domain }}-access.log combined
+    {% else %}
+    ErrorLog ${APACHE_LOG_DIR}/{{ domain }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ domain }}-access.log combined
+    {% endif %}
+</VirtualHost>
+
+# ============================================================
+# Canonical redirect: {{ redirect_domain }} → {{ domain }} (301)
+# ============================================================
+<VirtualHost *:{{ port }}>
+    ServerName {{ redirect_domain }}
+    Redirect permanent / http://{{ domain }}{% if port != 80 and port != 443 %}:{{ port }}{% endif %}/
+</VirtualHost>

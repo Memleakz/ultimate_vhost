@@ -1,0 +1,102 @@
+{# -----------------------------------------------------------------------
+   Determine the canonical redirect counterpart.
+   Input: example.com     → redirect block handles www.example.com
+   Input: www.example.com → redirect block handles example.com
+   ----------------------------------------------------------------------- #}
+{% if domain.startswith('www.') %}
+{% set redirect_domain = domain[4:] %}
+{% else %}
+{% set redirect_domain = 'www.' ~ domain %}
+{% endif %}
+# ============================================================
+# Main server block — {{ domain }}
+# ============================================================
+server {
+    listen {{ port }};
+    server_name {{ domain }};
+    root "{{ document_root }}";
+
+{% if runtime == 'php' %}
+    index index.php index.html index.htm;
+{% else %}
+    index index.html index.htm;
+{% endif %}
+
+    charset utf-8;
+
+{% if runtime == 'static' %}
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # --- PHP (php-fpm) — uncomment and reload Nginx to enable ---
+    # location ~ \.php$ {
+    #     fastcgi_pass unix:/run/php/php-fpm.sock;
+    #     fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+    #     include fastcgi_params;
+    # }
+
+    # --- Python (gunicorn) — uncomment and reload Nginx to enable ---
+    # location / {
+    #     proxy_pass http://127.0.0.1:8000;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    # }
+
+{% elif runtime == 'php' %}
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:{{ php_socket }};
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+{% elif runtime == 'python' %}
+    location / {
+        proxy_pass http://127.0.0.1:{{ python_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+{% elif runtime == 'nodejs' %}
+    location / {
+        {% if node_socket %}
+        proxy_pass http://unix:{{ node_socket }};
+        {% else %}
+        proxy_pass http://127.0.0.1:{{ node_port }};
+        {% endif %}
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+{% endif %}
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    access_log off;
+    error_log  "/var/log/nginx/{{ domain }}-error.log" error;
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+# ============================================================
+# Canonical redirect: {{ redirect_domain }} → {{ domain }} (301)
+# ============================================================
+server {
+    listen {{ port }};
+    server_name {{ redirect_domain }};
+    return 301 $scheme://{{ domain }}{% if port != 80 and port != 443 %}:{{ port }}{% endif %}$request_uri;
+}

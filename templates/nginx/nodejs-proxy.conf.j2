@@ -1,0 +1,71 @@
+{# ---
+variables:
+  - name: domain
+    description: "The fully-qualified domain name for the virtual host."
+  - name: port
+    description: "HTTP port the server block listens on."
+    default: "80"
+  - name: node_port
+    description: "Port the Node.js process is listening on."
+    default: "3000"
+  - name: node_socket
+    description: "Unix Domain Socket path for the Node.js process. Overrides node_port when set."
+    default: null
+--- #}
+{% if domain.startswith('www.') %}
+{% set redirect_domain = domain[4:] %}
+{% else %}
+{% set redirect_domain = 'www.' ~ domain %}
+{% endif %}
+# ============================================================
+# Node.js Reverse Proxy — {{ domain }}
+# ============================================================
+server {
+    listen {{ port }};
+    server_name {{ domain }};
+
+    {% if node_socket %}
+    location / {
+        proxy_pass http://unix:{{ node_socket }};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+    {% else %}
+    location / {
+        proxy_pass http://127.0.0.1:{{ node_port }};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+    {% endif %}
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    access_log off;
+    error_log  "/var/log/nginx/{{ domain }}-error.log" error;
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+# ============================================================
+# Canonical redirect: {{ redirect_domain }} → {{ domain }} (301)
+# ============================================================
+server {
+    listen {{ port }};
+    server_name {{ redirect_domain }};
+    return 301 $scheme://{{ domain }}{% if port != 80 and port != 443 %}:{{ port }}{% endif %}$request_uri;
+}

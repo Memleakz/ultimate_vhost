@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+*.xml
+*.so
+.Python
+develop-eggs/
+eggs/
+.eggs/
+# lib/ and lib64/ are intentionally NOT excluded here — src/lib/ is application source code.
+# Virtual-environment library paths are excluded via the .venv / venv entries below.
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / Build
+dist/
+build/
+target/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Project Specific
+run.log
+agent_interactions.log
+.kanban_state.json
+
+# IDEs
+.vscode/
+.idea/
+.spyderproject
+.spyproject
+.ropeproject
+
+# Logs
+pip-log.txt
+pip-delete-this-directory.txt
+*.log
+
+# Infrastructure
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# AI Orchestration (Two-Root Layout)
+PRD.md
+ARCHITECTURE.md
+DESIGN_SPEC.md
+SECURITY_AUDIT.md
+QA_REPORT.md
+project_manifest.md
+global_context.md
+API_DOCS.md
+GEMINI.md
+AGENTS.md

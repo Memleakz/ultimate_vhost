@@ -1,0 +1,49 @@
+{# ---
+variables:
+  - name: domain
+    description: "The fully-qualified domain name for the virtual host."
+  - name: port
+    description: "HTTP port the server block listens on."
+    default: "80"
+  - name: document_root
+    description: "Absolute path to the site web root directory."
+--- #}
+{% if domain.startswith('www.') %}
+{% set redirect_domain = domain[4:] %}
+{% else %}
+{% set redirect_domain = 'www.' ~ domain %}
+{% endif %}
+# ============================================================
+# Static site — {{ domain }}
+# ============================================================
+server {
+    listen {{ port }};
+    server_name {{ domain }};
+    root "{{ document_root }}";
+
+    index index.html index.htm;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    access_log off;
+    error_log  "/var/log/nginx/{{ domain }}-error.log" error;
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+# ============================================================
+# Canonical redirect: {{ redirect_domain }} → {{ domain }} (301)
+# ============================================================
+server {
+    listen {{ port }};
+    server_name {{ redirect_domain }};
+    return 301 $scheme://{{ domain }}{% if port != 80 and port != 443 %}:{{ port }}{% endif %}$request_uri;
+}

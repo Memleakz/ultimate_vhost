@@ -1,0 +1,89 @@
+name: CI Pipeline
+
+on:
+  push:
+  pull_request:
+  release:
+    types: [published]
+
+# All jobs run from src/ which is the git root of this repository.
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  lint-and-format:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Lint with ruff
+        run: ruff check .
+      - name: Check formatting with black
+        run: black --check .
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Run Bandit
+        # B101: assert in tests; B603: subprocess without shell=True is intentional
+        run: bandit -r lib/ -ll --skip B101,B603
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Verify OS detection script
+        run: |
+          chmod +x bin/detect_os.sh
+          ./bin/detect_os.sh
+      - name: Run tests with coverage
+        run: |
+          export PYTHONPATH=$(pwd):$(pwd)/lib
+          export VHOST_TEST_MODE=1
+          pytest \
+            --cov=lib/vhost_helper \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=80 \
+            tests/
+      - name: Upload coverage report
+        if: matrix.python-version == '3.10'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
