@@ -26,17 +26,46 @@ DEFAULT_PHP_SOCKET = "/run/php/php-fpm.sock"
 
 
 class VHostConfig(BaseModel):
-    domain: str = Field(..., description="The domain name (e.g., mysite.test)", pattern=r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$")
-    document_root: Path = Field(..., description="The absolute path to the project root")
-    server_type: ServerType = Field(default=ServerType.NGINX, description="The web server type")
-    enabled: bool = Field(default=True, description="Current status of the virtual host")
+    domain: str = Field(
+        ...,
+        description="The domain name (e.g., mysite.test)",
+        pattern=r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$",
+    )
+    document_root: Path = Field(
+        ..., description="The absolute path to the project root"
+    )
+    server_type: ServerType = Field(
+        default=ServerType.NGINX, description="The web server type"
+    )
+    enabled: bool = Field(
+        default=True, description="Current status of the virtual host"
+    )
     port: int = Field(default=80, description="Port number", ge=1, le=65535)
-    runtime: RuntimeMode = Field(default=RuntimeMode.STATIC, description="Language runtime mode")
-    python_port: int = Field(default=8000, description="Gunicorn upstream port (Python runtime)", ge=1, le=65535)
-    node_port: int = Field(default=3000, description="Node.js upstream port (nodejs runtime)", ge=1, le=65535)
-    node_socket: Optional[str] = Field(default=None, description="Unix Domain Socket path for Node.js (overrides node_port when set)")
-    php_socket: str = Field(default=DEFAULT_PHP_SOCKET, description="PHP-FPM socket path (PHP runtime)")
-    template: str = Field(default="default", description="The template used to create the config")
+    runtime: RuntimeMode = Field(
+        default=RuntimeMode.STATIC, description="Language runtime mode"
+    )
+    python_port: int = Field(
+        default=8000,
+        description="Gunicorn upstream port (Python runtime)",
+        ge=1,
+        le=65535,
+    )
+    node_port: int = Field(
+        default=3000,
+        description="Node.js upstream port (nodejs runtime)",
+        ge=1,
+        le=65535,
+    )
+    node_socket: Optional[str] = Field(
+        default=None,
+        description="Unix Domain Socket path for Node.js (overrides node_port when set)",
+    )
+    php_socket: str = Field(
+        default=DEFAULT_PHP_SOCKET, description="PHP-FPM socket path (PHP runtime)"
+    )
+    template: str = Field(
+        default="default", description="The template used to create the config"
+    )
 
     @field_validator("document_root")
     @classmethod
@@ -45,13 +74,15 @@ class VHostConfig(BaseModel):
             raise ValueError(f"Document root {v} does not exist.")
         if not v.is_dir():
             raise ValueError(f"Document root {v} must be a directory.")
-        
+
         # Security: Prevent configuration injection in Nginx/Apache templates.
         # Check for characters that could break out of a double-quoted string.
-        forbidden = ['"', '\n', '\r']
+        forbidden = ['"', "\n", "\r"]
         if any(char in str(v) for char in forbidden):
-            raise ValueError("Document root path contains forbidden characters (quotes or newlines).")
-            
+            raise ValueError(
+                "Document root path contains forbidden characters (quotes or newlines)."
+            )
+
         return v
 
 

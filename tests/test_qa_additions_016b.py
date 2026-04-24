@@ -14,13 +14,11 @@ test_qa_additions_017.py:
 """
 
 import pytest
-from pathlib import Path
 from unittest.mock import patch
 from typer.testing import CliRunner
 
 from vhost_helper.main import app
 from vhost_helper.providers.nginx import NginxProvider
-from vhost_helper.models import VHostConfig
 from vhost_helper.config import initialize_user_config
 
 runner = CliRunner()
@@ -29,6 +27,7 @@ runner = CliRunner()
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def isolated_template_dirs(tmp_path):
@@ -44,8 +43,9 @@ def isolated_template_dirs(tmp_path):
 def fresh_provider(isolated_template_dirs):
     """NginxProvider created after patching template dirs; patches remain active."""
     user_dir, app_dir = isolated_template_dirs
-    with patch("vhost_helper.providers.nginx.USER_TEMPLATES_DIR", user_dir), \
-         patch("vhost_helper.providers.nginx.APP_TEMPLATES_DIR", app_dir):
+    with patch("vhost_helper.providers.nginx.USER_TEMPLATES_DIR", user_dir), patch(
+        "vhost_helper.providers.nginx.APP_TEMPLATES_DIR", app_dir
+    ):
         provider = NginxProvider()
         yield provider, user_dir / "nginx", app_dir / "nginx"
 
@@ -53,6 +53,7 @@ def fresh_provider(isolated_template_dirs):
 # ---------------------------------------------------------------------------
 # CLI: --template flag presence and help text
 # ---------------------------------------------------------------------------
+
 
 class TestCliTemplateFlagPresence:
     def test_template_option_appears_in_create_help(self):
@@ -76,7 +77,9 @@ class TestCliTemplateFlagPresence:
         )
         # Should fail with template-not-found, NOT with "no such option"
         assert result.exit_code != 0
-        assert "nonexistent_xyz" in result.stdout or "nonexistent_xyz" in (result.exception and str(result.exception) or "")
+        assert "nonexistent_xyz" in result.stdout or "nonexistent_xyz" in (
+            result.exception and str(result.exception) or ""
+        )
 
     def test_default_template_name_is_default(self, tmp_path, mocker):
         """When --template is omitted, VHostConfig.template defaults to 'default'."""
@@ -106,6 +109,7 @@ class TestCliTemplateFlagPresence:
 # Template resolution edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestTemplateResolutionEdgeCases:
     def test_template_name_with_conf_extension_not_found(self, fresh_provider):
         """If user passes 'wordpress.conf', the lookup key becomes
@@ -133,8 +137,9 @@ class TestTemplateResolutionEdgeCases:
         user_dir, app_dir = isolated_template_dirs
         (user_dir / "nginx" / "shared.conf.j2").write_text("user version")
         (app_dir / "nginx" / "shared.conf.j2").write_text("app version")
-        with patch("vhost_helper.providers.nginx.USER_TEMPLATES_DIR", user_dir), \
-             patch("vhost_helper.providers.nginx.APP_TEMPLATES_DIR", app_dir):
+        with patch("vhost_helper.providers.nginx.USER_TEMPLATES_DIR", user_dir), patch(
+            "vhost_helper.providers.nginx.APP_TEMPLATES_DIR", app_dir
+        ):
             provider = NginxProvider()
         tmpl = provider._get_template("shared")
         assert tmpl.render() == "user version"
@@ -143,8 +148,9 @@ class TestTemplateResolutionEdgeCases:
         """If user dir has no match, the app dir must supply the template."""
         user_dir, app_dir = isolated_template_dirs
         (app_dir / "nginx" / "apponly.conf.j2").write_text("app only")
-        with patch("vhost_helper.providers.nginx.USER_TEMPLATES_DIR", user_dir), \
-             patch("vhost_helper.providers.nginx.APP_TEMPLATES_DIR", app_dir):
+        with patch("vhost_helper.providers.nginx.USER_TEMPLATES_DIR", user_dir), patch(
+            "vhost_helper.providers.nginx.APP_TEMPLATES_DIR", app_dir
+        ):
             provider = NginxProvider()
         tmpl = provider._get_template("apponly")
         assert tmpl.render() == "app only"
@@ -165,6 +171,7 @@ class TestTemplateResolutionEdgeCases:
 # ---------------------------------------------------------------------------
 # initialize_user_config resilience
 # ---------------------------------------------------------------------------
+
 
 class TestInitializeUserConfigResilience:
     def test_idempotent_when_directory_already_exists(self, tmp_path):
@@ -207,16 +214,20 @@ class TestInitializeUserConfigResilience:
 # NginxProvider RHEL-family template resolution
 # ---------------------------------------------------------------------------
 
+
 class TestRhelTemplateResolution:
-    def test_rhel_provider_also_uses_template_hierarchy(self, isolated_template_dirs, mocker):
+    def test_rhel_provider_also_uses_template_hierarchy(
+        self, isolated_template_dirs, mocker
+    ):
         """Template hierarchy must work on RHEL-family too."""
         user_dir, app_dir = isolated_template_dirs
         (app_dir / "nginx" / "default.conf.j2").write_text("rhel default")
 
         mocker.patch("vhost_helper.providers.nginx.detected_os_family", "rhel_family")
 
-        with patch("vhost_helper.providers.nginx.USER_TEMPLATES_DIR", user_dir), \
-             patch("vhost_helper.providers.nginx.APP_TEMPLATES_DIR", app_dir):
+        with patch("vhost_helper.providers.nginx.USER_TEMPLATES_DIR", user_dir), patch(
+            "vhost_helper.providers.nginx.APP_TEMPLATES_DIR", app_dir
+        ):
             provider = NginxProvider()
 
         tmpl = provider._get_template("default")

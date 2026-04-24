@@ -7,6 +7,7 @@ Covers:
 - Coverage gaps: port boundaries, symlink-already-exists, create rollback, document root is-file
 - Remove command service-state awareness (new behaviour added with bug fix)
 """
+
 import subprocess
 import tempfile
 from pathlib import Path
@@ -24,6 +25,7 @@ runner = CliRunner()
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def tmp_nginx_dirs(mocker):
@@ -50,6 +52,7 @@ def doc_root(tmp_path):
 # ---------------------------------------------------------------------------
 # BUG-001 Regression: remove_vhost RuntimeError propagation
 # ---------------------------------------------------------------------------
+
 
 def test_remove_vhost_skips_reload_when_service_stopped(tmp_nginx_dirs, mocker):
     """BUG-001 fix: remove_vhost(service_running=False) must NOT call reload()."""
@@ -81,7 +84,9 @@ def test_remove_vhost_does_not_raise_from_stopped_service(tmp_nginx_dirs, mocker
     mocker.patch("subprocess.run")
 
     # Reload would have raised RuntimeError before the fix
-    mocker.patch.object(NginxProvider, "reload", side_effect=RuntimeError("reload failed"))
+    mocker.patch.object(
+        NginxProvider, "reload", side_effect=RuntimeError("reload failed")
+    )
 
     provider = NginxProvider()
     # Should NOT raise — reload is not called when service_running=False
@@ -125,6 +130,7 @@ def test_cli_remove_succeeds_when_service_running(tmp_nginx_dirs, doc_root, mock
 # BUG-002: is_nginx_running timeout / SubprocessError
 # ---------------------------------------------------------------------------
 
+
 def test_is_nginx_running_returns_false_on_timeout(mocker):
     """BUG-002 fix: TimeoutExpired must be caught and return False, not raise."""
     mocker.patch(
@@ -143,6 +149,7 @@ def test_is_nginx_running_returns_false_on_subprocess_error(mocker):
 # ---------------------------------------------------------------------------
 # Coverage gap: port boundary values
 # ---------------------------------------------------------------------------
+
 
 def test_vhost_config_port_boundary_min_valid(tmp_path):
     """Port=1 is the minimum valid value."""
@@ -170,6 +177,7 @@ def test_vhost_config_port_boundary_max_valid(tmp_path):
 # Coverage gap: document root is a file, not a directory
 # ---------------------------------------------------------------------------
 
+
 def test_cli_create_document_root_is_file(mocker, tmp_path):
     """If document_root is a file (not a directory), the command must fail."""
     file_path = tmp_path / "notadir.txt"
@@ -186,6 +194,7 @@ def test_cli_create_document_root_is_file(mocker, tmp_path):
 # ---------------------------------------------------------------------------
 # Coverage gap: create_vhost when symlink already exists
 # ---------------------------------------------------------------------------
+
 
 def test_create_vhost_skips_ln_if_symlink_already_exists(tmp_nginx_dirs, mocker):
     """If the enabled symlink already exists, the ln command must NOT be run again."""
@@ -215,12 +224,15 @@ def test_create_vhost_skips_ln_if_symlink_already_exists(tmp_nginx_dirs, mocker)
     provider.create_vhost(config, service_running=True)
 
     calls = [" ".join(str(c) for c in call[0][0]) for call in mock_run.call_args_list]
-    assert not any("ln" in c for c in calls), "ln should NOT be called when symlink already exists"
+    assert not any(
+        "ln" in c for c in calls
+    ), "ln should NOT be called when symlink already exists"
 
 
 # ---------------------------------------------------------------------------
 # Coverage gap: create command rollback when NginxProvider.create_vhost raises
 # ---------------------------------------------------------------------------
+
 
 def test_cli_create_rollback_removes_hostfile_entry_on_nginx_failure(
     tmp_nginx_dirs, doc_root, mocker
@@ -249,6 +261,7 @@ def test_cli_create_rollback_removes_hostfile_entry_on_nginx_failure(
 # ---------------------------------------------------------------------------
 # Coverage gap: domain validation edge cases
 # ---------------------------------------------------------------------------
+
 
 def test_domain_validation_exactly_253_chars(mocker):
     """A 253-character domain must pass format validation (only document root fails)."""

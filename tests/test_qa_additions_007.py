@@ -9,12 +9,9 @@ Covers:
 - NginxProvider.remove_vhost: no-op when files absent
 - acquire_certificate: uses subprocess.run (not run_elevated_command)
 """
+
 import subprocess
-import sys
-from contextlib import contextmanager
-from io import StringIO
-from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -26,10 +23,10 @@ from vhost_helper.utils import (
     set_active_live,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_completed(returncode: int = 0) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(args=[], returncode=returncode)
@@ -38,6 +35,7 @@ def _make_completed(returncode: int = 0) -> subprocess.CompletedProcess:
 # ---------------------------------------------------------------------------
 # BUG-008: validate_domain per-label length (RFC 1035 §2.3.4)
 # ---------------------------------------------------------------------------
+
 
 class TestValidateDomainPerLabelLength:
     def test_label_of_exactly_63_chars_is_accepted(self):
@@ -70,6 +68,7 @@ class TestValidateDomainPerLabelLength:
 # ---------------------------------------------------------------------------
 # validate_domain: additional edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestValidateDomainEdgeCasesQA007:
     def test_single_label_no_dot_rejected(self):
@@ -126,6 +125,7 @@ class TestValidateDomainEdgeCasesQA007:
 # preflight_sudo_check: flush order and root-with-TTY edge case
 # ---------------------------------------------------------------------------
 
+
 class TestPreflightSudoCheckFlushOrder:
     def test_stdout_and_stderr_flushed_before_subprocess_run_on_tty(self, mocker):
         """On an interactive TTY, stdout and stderr must be flushed before sudo -v is called."""
@@ -152,11 +152,14 @@ class TestPreflightSudoCheckFlushOrder:
         assert "stdout_flush" in call_order
         assert "stderr_flush" in call_order
         assert "subprocess_run" in call_order
-        flush_positions = [call_order.index("stdout_flush"), call_order.index("stderr_flush")]
+        flush_positions = [
+            call_order.index("stdout_flush"),
+            call_order.index("stderr_flush"),
+        ]
         run_pos = call_order.index("subprocess_run")
-        assert max(flush_positions) < run_pos, (
-            "Both stdout and stderr must be flushed before subprocess.run is called"
-        )
+        assert (
+            max(flush_positions) < run_pos
+        ), "Both stdout and stderr must be flushed before subprocess.run is called"
 
     def test_root_uid_skips_subprocess_even_when_tty_is_present(self, mocker):
         """UID=0 must skip sudo -v unconditionally, even when isatty()=True."""
@@ -173,10 +176,13 @@ class TestPreflightSudoCheckFlushOrder:
 # run_elevated_command: check=False + nonzero sudo exit
 # ---------------------------------------------------------------------------
 
+
 class TestRunElevatedCommandCheckFalse:
     def test_check_false_nonzero_sudo_does_not_raise(self, mocker):
         """check=False + non-zero exit must NOT raise RuntimeError."""
-        mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(2))
+        mocker.patch(
+            "vhost_helper.utils.subprocess.run", return_value=_make_completed(2)
+        )
         mocker.patch("vhost_helper.utils.sys.stdout")
         mocker.patch("vhost_helper.utils.sys.stderr")
         mocker.patch("vhost_helper.utils._console")
@@ -186,7 +192,9 @@ class TestRunElevatedCommandCheckFalse:
 
     def test_check_false_nonzero_sudo_does_not_print_confirmation(self, mocker):
         """check=False + non-zero exit must NOT print 'Privileges confirmed.'"""
-        mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(2))
+        mocker.patch(
+            "vhost_helper.utils.subprocess.run", return_value=_make_completed(2)
+        )
         mocker.patch("vhost_helper.utils.sys.stdout")
         mocker.patch("vhost_helper.utils.sys.stderr")
         mock_console = MagicMock()
@@ -201,7 +209,9 @@ class TestRunElevatedCommandCheckFalse:
 
     def test_check_false_zero_sudo_still_prints_confirmation(self, mocker):
         """check=False + zero exit must still print confirmation (same as check=True)."""
-        mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(0))
+        mocker.patch(
+            "vhost_helper.utils.subprocess.run", return_value=_make_completed(0)
+        )
         mocker.patch("vhost_helper.utils.sys.stdout")
         mocker.patch("vhost_helper.utils.sys.stderr")
         mock_console = MagicMock()
@@ -218,6 +228,7 @@ class TestRunElevatedCommandCheckFalse:
 # ---------------------------------------------------------------------------
 # run_elevated_command: ValueError message content
 # ---------------------------------------------------------------------------
+
 
 class TestRunElevatedCommandValueError:
     def test_value_error_message_mentions_pipe(self):
@@ -244,6 +255,7 @@ class TestRunElevatedCommandValueError:
 # _tracked_status: exception safety
 # ---------------------------------------------------------------------------
 
+
 class TestTrackedStatusExceptionSafety:
     def test_set_active_live_cleared_on_exception_inside_block(self, mocker):
         """If an exception is raised inside _tracked_status, set_active_live(None) must still run."""
@@ -261,9 +273,9 @@ class TestTrackedStatusExceptionSafety:
             with _tracked_status("[bold green]Test[/bold green]", spinner="dots"):
                 raise RuntimeError("inner error")
 
-        assert cleared[-1] is None, (
-            "set_active_live(None) must be the last call even when an exception propagates"
-        )
+        assert (
+            cleared[-1] is None
+        ), "set_active_live(None) must be the last call even when an exception propagates"
 
     def test_active_live_module_global_is_none_after_exception(self, mocker):
         """_active_live module global must be None after exception exits _tracked_status."""
@@ -280,6 +292,7 @@ class TestTrackedStatusExceptionSafety:
 # NginxProvider.remove_vhost: no-op paths
 # ---------------------------------------------------------------------------
 
+
 class TestNginxProviderRemoveVhostNoOp:
     def test_remove_vhost_skips_rm_when_no_files_exist(self, mocker, tmp_path):
         """remove_vhost must not call rm when neither the config file nor symlink exists."""
@@ -293,15 +306,11 @@ class TestNginxProviderRemoveVhostNoOp:
         mock_run = mocker.patch("vhost_helper.utils.subprocess.run")
 
         from vhost_helper.providers.nginx import NginxProvider
+
         provider = NginxProvider()
         # service_running=False to skip reload
         provider.remove_vhost("nonexistent.test", service_running=False)
 
         # subprocess.run should not have been called for any rm command
-        rm_calls = [
-            c for c in mock_run.call_args_list
-            if c.args and "rm" in c.args[0]
-        ]
+        rm_calls = [c for c in mock_run.call_args_list if c.args and "rm" in c.args[0]]
         assert rm_calls == [], f"Unexpected rm calls: {rm_calls}"
-
-

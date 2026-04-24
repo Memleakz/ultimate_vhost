@@ -194,7 +194,9 @@ def is_service_running(service_name: str) -> bool:
     return False
 
 
-def reload_service(service_name: str, fallback_args: Optional[list[str]] = None) -> None:
+def reload_service(
+    service_name: str, fallback_args: Optional[list[str]] = None
+) -> None:
     """
     Reloads a service using systemctl with an optional fallback CLI command.
     Example: reload_service("nginx", ["nginx", "-s", "reload"])

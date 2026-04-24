@@ -18,6 +18,7 @@ from typing import Optional
 
 try:
     import yaml as _yaml
+
     _YAML_AVAILABLE = True
 except ImportError:  # pyyaml is an optional dependency
     _yaml = None  # type: ignore[assignment]
@@ -54,7 +55,7 @@ def extract_variables(template_path: Path) -> list[str]:
     """
     try:
         source = template_path.read_text(encoding="utf-8")
-        env = Environment()
+        env = Environment(autoescape=True)
         ast = env.parse(source)
         variables = jinja2_meta.find_undeclared_variables(ast)
         return sorted(variables - _JINJA2_BUILTINS)

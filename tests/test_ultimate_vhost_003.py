@@ -7,16 +7,20 @@ Acceptance criteria verified here:
 3. The tool hard-fails (exit 1) when the nginx binary is missing from PATH.
 4. No service-management commands (systemctl start / service nginx start) are invoked.
 """
+
 import tempfile
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
-import vhost_helper.providers.nginx as nginx_module
 from vhost_helper.main import app
 from vhost_helper.models import VHostConfig, ServerType
-from vhost_helper.providers.nginx import NginxProvider, is_nginx_installed, is_nginx_running
+from vhost_helper.providers.nginx import (
+    NginxProvider,
+    is_nginx_installed,
+    is_nginx_running,
+)
 
 runner = CliRunner()
 
@@ -28,6 +32,7 @@ INACTIVE_WARNING = (
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def tmp_nginx_dirs(mocker):
@@ -57,6 +62,7 @@ def doc_root(tmp_path):
 # ---------------------------------------------------------------------------
 # Unit tests: is_nginx_installed / is_nginx_running
 # ---------------------------------------------------------------------------
+
 
 def test_is_nginx_installed_returns_true_when_binary_on_path(mocker):
     mocker.patch("shutil.which", return_value="/usr/sbin/nginx")
@@ -91,9 +97,11 @@ def test_is_nginx_running_returns_false_when_systemctl_missing(mocker):
 # Unit tests: NginxProvider.create_vhost with service_running=False
 # ---------------------------------------------------------------------------
 
+
 def test_create_vhost_writes_files_when_service_stopped(tmp_nginx_dirs, mocker):
     """Config file and symlink are created even when nginx service is stopped."""
     import subprocess
+
     available, enabled, tmp_path = tmp_nginx_dirs
 
     mocker.patch(
@@ -113,13 +121,18 @@ def test_create_vhost_writes_files_when_service_stopped(tmp_nginx_dirs, mocker):
     provider.create_vhost(config, service_running=False)
 
     calls = [c[0][0] for c in subprocess.run.call_args_list]
-    assert any("mv" in c for c in calls), "Config file should be moved to sites-available"
+    assert any(
+        "mv" in c for c in calls
+    ), "Config file should be moved to sites-available"
     assert any("ln" in c for c in calls), "Symlink should be created in sites-enabled"
 
 
-def test_create_vhost_does_not_call_validate_or_reload_when_stopped(tmp_nginx_dirs, mocker):
+def test_create_vhost_does_not_call_validate_or_reload_when_stopped(
+    tmp_nginx_dirs, mocker
+):
     """validate_config and reload must NOT be called when service is stopped."""
     import subprocess
+
     available, enabled, tmp_path = tmp_nginx_dirs
 
     mocker.patch(
@@ -127,7 +140,9 @@ def test_create_vhost_does_not_call_validate_or_reload_when_stopped(tmp_nginx_di
         return_value=subprocess.CompletedProcess(args=[], returncode=0),
     )
     mocker.patch("vhost_helper.utils._console")
-    mock_validate = mocker.patch.object(NginxProvider, "validate_config", return_value=True)
+    mock_validate = mocker.patch.object(
+        NginxProvider, "validate_config", return_value=True
+    )
     mock_reload = mocker.patch.object(NginxProvider, "reload")
 
     provider = NginxProvider()
@@ -147,6 +162,7 @@ def test_create_vhost_does_not_call_validate_or_reload_when_stopped(tmp_nginx_di
 def test_create_vhost_calls_validate_and_reload_when_running(tmp_nginx_dirs, mocker):
     """Existing behaviour: validate_config and reload ARE called when service is running."""
     import subprocess
+
     available, enabled, tmp_path = tmp_nginx_dirs
 
     mocker.patch(
@@ -154,7 +170,9 @@ def test_create_vhost_calls_validate_and_reload_when_running(tmp_nginx_dirs, moc
         return_value=subprocess.CompletedProcess(args=[], returncode=0),
     )
     mocker.patch("vhost_helper.utils._console")
-    mock_validate = mocker.patch.object(NginxProvider, "validate_config", return_value=True)
+    mock_validate = mocker.patch.object(
+        NginxProvider, "validate_config", return_value=True
+    )
     mock_reload = mocker.patch.object(NginxProvider, "reload")
 
     provider = NginxProvider()
@@ -175,6 +193,7 @@ def test_create_vhost_calls_validate_and_reload_when_running(tmp_nginx_dirs, moc
 # Integration tests: CLI `vhost create` command
 # ---------------------------------------------------------------------------
 
+
 def test_cli_create_succeeds_with_stopped_service(tmp_nginx_dirs, doc_root, mocker):
     """Exit code is 0 and warning is shown when nginx is installed but stopped."""
     available, enabled, _ = tmp_nginx_dirs
@@ -192,7 +211,9 @@ def test_cli_create_succeeds_with_stopped_service(tmp_nginx_dirs, doc_root, mock
     assert "manually to apply these changes" in result.output
 
 
-def test_cli_create_shows_skipped_steps_when_service_stopped(tmp_nginx_dirs, doc_root, mocker):
+def test_cli_create_shows_skipped_steps_when_service_stopped(
+    tmp_nginx_dirs, doc_root, mocker
+):
     """Skipped-step indicators must appear in output when service is stopped."""
     available, enabled, _ = tmp_nginx_dirs
 
@@ -208,7 +229,9 @@ def test_cli_create_shows_skipped_steps_when_service_stopped(tmp_nginx_dirs, doc
     assert "Nginx reload" in result.output
 
 
-def test_cli_create_fails_hard_when_nginx_not_installed(tmp_nginx_dirs, doc_root, mocker):
+def test_cli_create_fails_hard_when_nginx_not_installed(
+    tmp_nginx_dirs, doc_root, mocker
+):
     """Exit code is 1 and 'No supported web server found' error is shown when binary is missing."""
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=False)
     mocker.patch("vhost_helper.main.is_apache_installed", return_value=False)
@@ -236,7 +259,9 @@ def test_cli_create_does_not_invoke_service_start(tmp_nginx_dirs, doc_root, mock
         cmd = call[0][0] if call[0] else call[1].get("args", [])
         cmd_str = " ".join(str(c) for c in cmd)
         assert "systemctl start" not in cmd_str, f"Forbidden command invoked: {cmd_str}"
-        assert "service nginx start" not in cmd_str, f"Forbidden command invoked: {cmd_str}"
+        assert (
+            "service nginx start" not in cmd_str
+        ), f"Forbidden command invoked: {cmd_str}"
 
 
 def test_cli_create_succeeds_with_running_service(tmp_nginx_dirs, doc_root, mocker):

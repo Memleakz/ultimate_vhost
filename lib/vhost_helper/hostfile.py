@@ -14,13 +14,11 @@ def add_entry(ip: str, domain: str):
     with open(HOSTS_FILE, "r") as f:
         content = f.read()
         if re.search(
-            fr"^\s*{re.escape(ip)}\s+{re.escape(domain)}(\s|$)", content, re.MULTILINE
+            rf"^\s*{re.escape(ip)}\s+{re.escape(domain)}(\s|$)", content, re.MULTILINE
         ):
             return
 
-        if re.search(
-            fr"^\s*[\d.]+\s+{re.escape(domain)}(\s|$)", content, re.MULTILINE
-        ):
+        if re.search(rf"^\s*[\d.]+\s+{re.escape(domain)}(\s|$)", content, re.MULTILINE):
             remove_entry(domain)
 
     sudo_prefix = get_sudo_prefix()
@@ -28,14 +26,18 @@ def add_entry(ip: str, domain: str):
         if sudo_prefix:
             # Use NamedTemporaryFile to avoid mktemp() race conditions.
             # We must close it before 'tee' reads it, or flush it.
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".vhosts_entry", delete=False) as tmp_file:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".vhosts_entry", delete=False
+            ) as tmp_file:
                 tmp_file.write(f"{entry}\n")
                 tmp_path = Path(tmp_file.name)
-            
+
             try:
                 cmd = sudo_prefix + ["tee", "-a", str(HOSTS_FILE)]
                 with open(tmp_path, "rb") as entry_stdin:
-                    run_elevated_command(cmd, stdin=entry_stdin, stdout=subprocess.DEVNULL)
+                    run_elevated_command(
+                        cmd, stdin=entry_stdin, stdout=subprocess.DEVNULL
+                    )
             finally:
                 tmp_path.unlink(missing_ok=True)
         else:
@@ -51,11 +53,11 @@ def remove_entry(domain: str):
         # Read the file
         with open(HOSTS_FILE, "r") as f:
             lines = f.readlines()
-        
+
         # Filter lines
-        pattern = re.compile(fr"(^|\s){re.escape(domain)}(\s|$)")
+        pattern = re.compile(rf"(^|\s){re.escape(domain)}(\s|$)")
         new_lines = [line for line in lines if not pattern.search(line)]
-        
+
         if len(new_lines) == len(lines):
             return
 
@@ -63,15 +65,19 @@ def remove_entry(domain: str):
         if sudo_prefix:
             # Write new content to a temp file then tee it to /etc/hosts
             # This avoids 'sed -i' which fails when /etc/hosts is a mount point (common in containers).
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".vhosts_clean", delete=False) as tmp_file:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".vhosts_clean", delete=False
+            ) as tmp_file:
                 tmp_file.writelines(new_lines)
                 tmp_path = Path(tmp_file.name)
-            
+
             try:
                 cmd = sudo_prefix + ["tee", str(HOSTS_FILE)]
                 with open(tmp_path, "rb") as clean_stdin:
                     # Overwrite the file (no -a)
-                    run_elevated_command(cmd, stdin=clean_stdin, stdout=subprocess.DEVNULL)
+                    run_elevated_command(
+                        cmd, stdin=clean_stdin, stdout=subprocess.DEVNULL
+                    )
             finally:
                 tmp_path.unlink(missing_ok=True)
         else:

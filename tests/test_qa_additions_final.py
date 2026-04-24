@@ -15,7 +15,7 @@ Targets uncovered branches identified by coverage analysis:
 import subprocess
 import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from typer.testing import CliRunner
 
 from vhost_helper.main import (
@@ -24,7 +24,7 @@ from vhost_helper.main import (
     _detect_server_type,
     validate_domain,
 )
-from vhost_helper.models import VHostConfig, ServerType, RuntimeMode
+from vhost_helper.models import VHostConfig, ServerType
 from vhost_helper.providers import apache as apache_mod
 from vhost_helper.providers.apache import ApacheProvider
 from vhost_helper.hostfile import add_entry, remove_entry
@@ -135,7 +135,9 @@ def test_apache_get_template_raises_file_not_found(tmp_path, mocker):
     mocker.patch("vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app")
 
     provider = ApacheProvider()
-    with pytest.raises(FileNotFoundError, match="Template 'nonexistent' not found for Apache"):
+    with pytest.raises(
+        FileNotFoundError, match="Template 'nonexistent' not found for Apache"
+    ):
         provider._get_template("nonexistent")
 
 
@@ -154,7 +156,9 @@ def test_apache_create_vhost_selinux_failure_triggers_rollback(tmp_path, mocker)
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_ENABLED", enabled)
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_DISABLED", None)
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.apache.is_selinux_enforcing", return_value=True)
+    mocker.patch(
+        "vhost_helper.providers.apache.is_selinux_enforcing", return_value=True
+    )
 
     call_count = [0]
 
@@ -164,7 +168,10 @@ def test_apache_create_vhost_selinux_failure_triggers_rollback(tmp_path, mocker)
         if "chcon" in cmd:
             raise RuntimeError("chcon failed")
 
-    mocker.patch("vhost_helper.providers.apache.run_elevated_command", side_effect=run_side_effect)
+    mocker.patch(
+        "vhost_helper.providers.apache.run_elevated_command",
+        side_effect=run_side_effect,
+    )
 
     # Need actual templates
     app_t = tmp_path / "app_templates" / "apache"
@@ -172,7 +179,9 @@ def test_apache_create_vhost_selinux_failure_triggers_rollback(tmp_path, mocker)
     (app_t / "default.conf.j2").write_text(
         "<VirtualHost *:80>\n  ServerName {{ domain }}\n  DocumentRoot {{ document_root }}\n</VirtualHost>"
     )
-    mocker.patch("vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app_templates")
+    mocker.patch(
+        "vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app_templates"
+    )
     mocker.patch(
         "vhost_helper.providers.apache.USER_TEMPLATES_DIR",
         tmp_path / "user_templates",
@@ -204,7 +213,9 @@ def test_apache_create_vhost_reload_failure_triggers_rollback(tmp_path, mocker):
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_ENABLED", enabled)
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_DISABLED", None)
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.apache.is_selinux_enforcing", return_value=False)
+    mocker.patch(
+        "vhost_helper.providers.apache.is_selinux_enforcing", return_value=False
+    )
     mocker.patch("vhost_helper.providers.apache.run_elevated_command")
 
     app_t = tmp_path / "app_templates" / "apache"
@@ -212,7 +223,9 @@ def test_apache_create_vhost_reload_failure_triggers_rollback(tmp_path, mocker):
     (app_t / "default.conf.j2").write_text(
         "<VirtualHost *:80>\n  ServerName {{ domain }}\n  DocumentRoot {{ document_root }}\n</VirtualHost>"
     )
-    mocker.patch("vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app_templates")
+    mocker.patch(
+        "vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app_templates"
+    )
     mocker.patch(
         "vhost_helper.providers.apache.USER_TEMPLATES_DIR",
         tmp_path / "user_templates",
@@ -248,7 +261,9 @@ def test_apache_create_vhost_validation_failure_triggers_rollback(tmp_path, mock
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_ENABLED", enabled)
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_DISABLED", None)
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.apache.is_selinux_enforcing", return_value=False)
+    mocker.patch(
+        "vhost_helper.providers.apache.is_selinux_enforcing", return_value=False
+    )
     mocker.patch("vhost_helper.providers.apache.run_elevated_command")
 
     app_t = tmp_path / "app_templates" / "apache"
@@ -256,7 +271,9 @@ def test_apache_create_vhost_validation_failure_triggers_rollback(tmp_path, mock
     (app_t / "default.conf.j2").write_text(
         "<VirtualHost *:80>\n  ServerName {{ domain }}\n  DocumentRoot {{ document_root }}\n</VirtualHost>"
     )
-    mocker.patch("vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app_templates")
+    mocker.patch(
+        "vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app_templates"
+    )
     mocker.patch(
         "vhost_helper.providers.apache.USER_TEMPLATES_DIR",
         tmp_path / "user_templates",
@@ -289,23 +306,33 @@ def test_apache_create_vhost_non_rollback_exception_wraps_message(tmp_path, mock
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_ENABLED", enabled)
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_DISABLED", None)
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.apache.is_selinux_enforcing", return_value=False)
+    mocker.patch(
+        "vhost_helper.providers.apache.is_selinux_enforcing", return_value=False
+    )
 
     # chmod raises a non-RuntimeError OSError — should trigger line 135
     call_count = [0]
+
     def run_side(cmd, **kwargs):
         call_count[0] += 1
         if "chmod" in cmd:
             raise OSError("permission denied")
-    mocker.patch("vhost_helper.providers.apache.run_elevated_command", side_effect=run_side)
+
+    mocker.patch(
+        "vhost_helper.providers.apache.run_elevated_command", side_effect=run_side
+    )
 
     app_t = tmp_path / "app_templates" / "apache"
     app_t.mkdir(parents=True)
     (app_t / "default.conf.j2").write_text(
         "<VirtualHost *:80>\n  ServerName {{ domain }}\n  DocumentRoot {{ document_root }}\n</VirtualHost>"
     )
-    mocker.patch("vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app_templates")
-    mocker.patch("vhost_helper.providers.apache.USER_TEMPLATES_DIR", tmp_path / "user_templates")
+    mocker.patch(
+        "vhost_helper.providers.apache.APP_TEMPLATES_DIR", tmp_path / "app_templates"
+    )
+    mocker.patch(
+        "vhost_helper.providers.apache.USER_TEMPLATES_DIR", tmp_path / "user_templates"
+    )
     (tmp_path / "user_templates" / "apache").mkdir(parents=True)
 
     doc_root = tmp_path / "www"
@@ -325,7 +352,10 @@ def test_apache_create_vhost_non_rollback_exception_wraps_message(tmp_path, mock
 
 def test_apache_validate_config_returns_false_on_os_error(mocker):
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.apache.run_elevated_command", side_effect=OSError("no binary"))
+    mocker.patch(
+        "vhost_helper.providers.apache.run_elevated_command",
+        side_effect=OSError("no binary"),
+    )
 
     provider = ApacheProvider()
     assert provider.validate_config() is False
@@ -333,7 +363,10 @@ def test_apache_validate_config_returns_false_on_os_error(mocker):
 
 def test_apache_validate_config_returns_false_on_file_not_found(mocker):
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "rhel_family")
-    mocker.patch("vhost_helper.providers.apache.run_elevated_command", side_effect=FileNotFoundError("httpd"))
+    mocker.patch(
+        "vhost_helper.providers.apache.run_elevated_command",
+        side_effect=FileNotFoundError("httpd"),
+    )
 
     provider = ApacheProvider()
     assert provider.validate_config() is False
@@ -341,7 +374,10 @@ def test_apache_validate_config_returns_false_on_file_not_found(mocker):
 
 def test_apache_validate_config_returns_false_on_runtime_error(mocker):
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.apache.run_elevated_command", side_effect=RuntimeError("exit 1"))
+    mocker.patch(
+        "vhost_helper.providers.apache.run_elevated_command",
+        side_effect=RuntimeError("exit 1"),
+    )
 
     provider = ApacheProvider()
     assert provider.validate_config() is False
@@ -354,7 +390,10 @@ def test_apache_validate_config_returns_false_on_runtime_error(mocker):
 
 def test_apache_reload_raises_runtime_error(mocker):
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.apache.run_elevated_command", side_effect=RuntimeError("systemctl failed"))
+    mocker.patch(
+        "vhost_helper.providers.apache.run_elevated_command",
+        side_effect=RuntimeError("systemctl failed"),
+    )
 
     provider = ApacheProvider()
     with pytest.raises(RuntimeError, match="Failed to reload Apache"):
@@ -375,10 +414,7 @@ def test_apache_remove_vhost_includes_rhel_disabled_path(rhel_apache, mocker):
     rhel_apache.remove_vhost("site.test", service_running=False)
 
     # rm should have been called
-    rm_calls = [
-        c for c in rhel_apache._mock_run.call_args_list
-        if "rm" in c.args[0]
-    ]
+    rm_calls = [c for c in rhel_apache._mock_run.call_args_list if "rm" in c.args[0]]
     assert rm_calls, "Expected rm to be called for RHEL remove_vhost"
 
 
@@ -543,11 +579,21 @@ def test_detect_provider_finds_nginx_in_sites_disabled(tmp_path, mocker):
     (disabled_dir / "myngx.test.conf").write_text("# disabled nginx config")
 
     # Patch config paths so only the DISABLED dir has a hit
-    mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "nonexistent_avail")
-    mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nonexistent_enabled")
+    mocker.patch(
+        "vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "nonexistent_avail"
+    )
+    mocker.patch(
+        "vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nonexistent_enabled"
+    )
     mocker.patch("vhost_helper.main.NGINX_SITES_DISABLED", disabled_dir)
-    mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nonexistent_apache_avail")
-    mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "nonexistent_apache_enabled")
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_AVAILABLE",
+        tmp_path / "nonexistent_apache_avail",
+    )
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_ENABLED",
+        tmp_path / "nonexistent_apache_enabled",
+    )
     mocker.patch("vhost_helper.main.APACHE_SITES_DISABLED", None)
 
     result = _detect_provider_for_domain("myngx.test")
@@ -596,7 +642,9 @@ def test_detect_provider_fallback_nginx_only(tmp_path, mocker):
     mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", nginx_avail)
     mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nonexistent_ne")
     mocker.patch("vhost_helper.main.NGINX_SITES_DISABLED", None)
-    mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nonexistent_aa")
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nonexistent_aa"
+    )
     mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "nonexistent_ae")
     mocker.patch("vhost_helper.main.APACHE_SITES_DISABLED", None)
 
@@ -650,7 +698,9 @@ def test_cli_create_nginx_not_installed_exits_with_error(tmp_path, mocker):
     doc_root = tmp_path / "www"
     doc_root.mkdir()
 
-    result = runner.invoke(app, ["create", "mysite.test", str(doc_root), "--provider", "nginx"])
+    result = runner.invoke(
+        app, ["create", "mysite.test", str(doc_root), "--provider", "nginx"]
+    )
     assert result.exit_code != 0
     assert "Nginx is not installed" in result.output
 
@@ -662,7 +712,9 @@ def test_cli_create_apache_not_installed_exits_with_error(tmp_path, mocker):
     doc_root = tmp_path / "www"
     doc_root.mkdir()
 
-    result = runner.invoke(app, ["create", "mysite.test", str(doc_root), "--provider", "apache"])
+    result = runner.invoke(
+        app, ["create", "mysite.test", str(doc_root), "--provider", "apache"]
+    )
     assert result.exit_code != 0
     assert "Apache is not installed" in result.output
 
@@ -705,7 +757,9 @@ def test_cli_enable_apache_service_path_used(tmp_path, mocker):
 
     mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", apache_avail)
     mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", apache_enabled)
-    mock_apache_running = mocker.patch("vhost_helper.main.is_apache_running", return_value=False)
+    mock_apache_running = mocker.patch(
+        "vhost_helper.main.is_apache_running", return_value=False
+    )
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=True)
     mocker.patch("vhost_helper.main.preflight_sudo_check")
     mocker.patch("vhost_helper.main.add_entry")
@@ -746,7 +800,9 @@ def test_cli_disable_apache_service_path_used(tmp_path, mocker):
     conf_file.write_text("# conf")
 
     mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", apache_enabled)
-    mock_apache_running = mocker.patch("vhost_helper.main.is_apache_running", return_value=False)
+    mock_apache_running = mocker.patch(
+        "vhost_helper.main.is_apache_running", return_value=False
+    )
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=True)
     mocker.patch("vhost_helper.main.preflight_sudo_check")
     mocker.patch("vhost_helper.main.remove_entry")
@@ -808,7 +864,11 @@ def test_requirements_txt_all_pinned():
     """All entries in requirements.txt must use == version pinning."""
     req_path = Path(__file__).parent.parent / "requirements.txt"
     assert req_path.exists(), "requirements.txt not found"
-    lines = [l.strip() for l in req_path.read_text().splitlines() if l.strip() and not l.startswith("#")]
+    lines = [
+        line.strip()
+        for line in req_path.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
     for line in lines:
         assert "==" in line, f"Unpinned requirement detected: {line!r}"
         assert ">=" not in line, f"Loose pin detected: {line!r}"
@@ -819,7 +879,11 @@ def test_requirements_dev_txt_all_pinned():
     """All entries in requirements-dev.txt must use == version pinning."""
     req_path = Path(__file__).parent.parent / "requirements-dev.txt"
     assert req_path.exists(), "requirements-dev.txt not found"
-    lines = [l.strip() for l in req_path.read_text().splitlines() if l.strip() and not l.startswith("#")]
+    lines = [
+        line.strip()
+        for line in req_path.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
     for line in lines:
         assert "==" in line, f"Unpinned requirement detected: {line!r}"
         assert ">=" not in line, f"Loose pin detected: {line!r}"
@@ -936,7 +1000,9 @@ def test_add_entry_does_not_duplicate(tmp_hosts, mocker):
     # Call add_entry again — should be a no-op
     add_entry("127.0.0.1", "dedup.test")
 
-    lines = [l for l in tmp_hosts.read_text().splitlines() if "dedup.test" in l]
+    lines = [
+        line for line in tmp_hosts.read_text().splitlines() if "dedup.test" in line
+    ]
     assert len(lines) == 1, "add_entry created a duplicate entry"
 
 

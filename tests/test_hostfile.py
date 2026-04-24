@@ -5,18 +5,20 @@ import subprocess
 from vhost_helper.hostfile import add_entry, remove_entry
 import vhost_helper.hostfile
 
+
 @pytest.fixture
 def temp_hosts_file():
-    with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
         tmp.write("127.0.0.1\tlocalhost\n")
         tmp_path = tmp.name
-    
+
     old_hosts = vhost_helper.hostfile.HOSTS_FILE
     vhost_helper.hostfile.HOSTS_FILE = tmp_path
     yield tmp_path
     vhost_helper.hostfile.HOSTS_FILE = old_hosts
     if os.path.exists(tmp_path):
         os.remove(tmp_path)
+
 
 def test_add_remove_entry(temp_hosts_file, mocker):
     mock_run = mocker.patch(
@@ -33,6 +35,7 @@ def test_add_remove_entry(temp_hosts_file, mocker):
     remove_entry("test.local")
     assert mock_run.called
 
+
 def test_mock_add_entry(temp_hosts_file, mocker):
     mock_run = mocker.patch(
         "vhost_helper.utils.subprocess.run",
@@ -42,6 +45,7 @@ def test_mock_add_entry(temp_hosts_file, mocker):
 
     add_entry("127.0.0.1", "test.local")
     assert mock_run.called
+
 
 def test_mock_remove_entry(temp_hosts_file, mocker):
     mock_run = mocker.patch(

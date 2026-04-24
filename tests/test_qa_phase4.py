@@ -16,12 +16,12 @@ Covers gaps not addressed by test_ultimate_vhost_004.py:
  - Template: unknown runtime emits no active location block (edge-case guard)
  - VHostConfig: php_socket is stored as provided string
 """
+
 import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
-from jinja2 import Environment, FileSystemLoader
 from typer.testing import CliRunner
 
 from vhost_helper.main import app, _resolve_php_socket
@@ -41,6 +41,7 @@ TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _render(
     domain: str = "example.test",
@@ -68,6 +69,7 @@ def _render(
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def doc_root(tmp_path):
     root = tmp_path / "project"
@@ -93,6 +95,7 @@ def tmp_nginx_dirs(mocker):
 # ---------------------------------------------------------------------------
 # BUG-005: validate_config() must handle FileNotFoundError gracefully
 # ---------------------------------------------------------------------------
+
 
 def test_validate_config_returns_false_on_file_not_found(mocker):
     """BUG-005: FileNotFoundError (nginx binary gone after install check) must
@@ -138,6 +141,7 @@ def test_validate_config_returns_true_on_success(mocker):
 # python_port boundary values — model validation
 # ---------------------------------------------------------------------------
 
+
 def test_vhost_config_python_port_min_valid(tmp_path):
     """python_port=1 is the minimum valid value (ge=1)."""
     config = VHostConfig(domain="example.test", document_root=tmp_path, python_port=1)
@@ -146,7 +150,9 @@ def test_vhost_config_python_port_min_valid(tmp_path):
 
 def test_vhost_config_python_port_max_valid(tmp_path):
     """python_port=65535 is the maximum valid value (le=65535)."""
-    config = VHostConfig(domain="example.test", document_root=tmp_path, python_port=65535)
+    config = VHostConfig(
+        domain="example.test", document_root=tmp_path, python_port=65535
+    )
     assert config.python_port == 65535
 
 
@@ -172,6 +178,7 @@ def test_vhost_config_python_port_negative_rejected(tmp_path):
 # Arch OS family PHP socket path
 # ---------------------------------------------------------------------------
 
+
 def test_php_socket_paths_contains_arch_key():
     """PHP_SOCKET_PATHS must have an 'arch' entry."""
     assert "arch" in PHP_SOCKET_PATHS
@@ -185,6 +192,7 @@ def test_php_socket_paths_arch_value():
 def test_resolve_php_socket_arch_family(mocker):
     """_resolve_php_socket must return the arch socket path when OS family is 'arch'."""
     from vhost_helper.models import OSInfo
+
     mocker.patch(
         "vhost_helper.main.get_os_info",
         return_value=OSInfo(id="arch", version="rolling", family="arch"),
@@ -196,6 +204,7 @@ def test_resolve_php_socket_arch_family(mocker):
 def test_resolve_php_socket_unknown_family_falls_back_to_default(mocker):
     """Unknown OS family must fall back to DEFAULT_PHP_SOCKET."""
     from vhost_helper.models import OSInfo
+
     mocker.patch(
         "vhost_helper.main.get_os_info",
         return_value=OSInfo(id="gentoo", version="17.1", family="unknown"),
@@ -222,21 +231,26 @@ def test_php_mode_arch_socket_in_template():
 # PHP mode: try_files uses /index.php fallback, not /index.html
 # ---------------------------------------------------------------------------
 
+
 def test_php_mode_try_files_uses_php_fallback():
     """PHP mode must use /index.php?$query_string as the try_files fallback."""
     config = _render(runtime="php")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("try_files" in l and "/index.php" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("try_files" in line and "/index.php" in line for line in active_lines)
 
 
 def test_php_mode_try_files_does_not_use_html_only_fallback():
     """PHP mode must NOT use /index.html as the sole try_files fallback."""
     config = _render(runtime="php")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
     # A line with only /index.html as fallback (no .php) should not appear
     assert not any(
-        "try_files" in l and "/index.html" in l and "/index.php" not in l
-        for l in active_lines
+        "try_files" in line and "/index.html" in line and "/index.php" not in line
+        for line in active_lines
     )
 
 
@@ -244,23 +258,29 @@ def test_php_mode_try_files_does_not_use_html_only_fallback():
 # Python mode: no static try_files directive
 # ---------------------------------------------------------------------------
 
+
 def test_python_mode_has_no_try_files_directive():
     """Python mode must NOT emit an active try_files directive (proxy handles routing)."""
     config = _render(runtime="python")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert not any("try_files" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not any("try_files" in line for line in active_lines)
 
 
 def test_python_mode_does_not_include_fastcgi_params():
     """Python mode must not include fastcgi_params include."""
     config = _render(runtime="python")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert not any("fastcgi_params" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not any("fastcgi_params" in line for line in active_lines)
 
 
 # ---------------------------------------------------------------------------
 # Redirect logic: subdomain handling
 # ---------------------------------------------------------------------------
+
 
 def test_subdomain_redirect_block_targets_www_subdomain():
     """sub.example.com (non-www) must generate a redirect from www.sub.example.com."""
@@ -302,6 +322,7 @@ def test_www_redirect_uses_correct_canonical_domain_in_return():
 # CLI: invalid --python-port exits gracefully
 # ---------------------------------------------------------------------------
 
+
 def test_cli_python_port_zero_exits_with_error(doc_root, mocker):
     """--python-port 0 with --python must exit with code 1 (Pydantic rejects port 0)."""
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
@@ -319,7 +340,8 @@ def test_cli_python_port_too_large_exits_with_error(doc_root, mocker):
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
     mocker.patch("vhost_helper.main.add_entry")
     result = runner.invoke(
-        app, ["create", "python.test", str(doc_root), "--python", "--python-port", "65536"]
+        app,
+        ["create", "python.test", str(doc_root), "--python", "--python-port", "65536"],
     )
     assert result.exit_code == 1
 
@@ -329,9 +351,13 @@ def test_cli_python_port_without_python_flag_uses_static_runtime(doc_root, mocke
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
     mocker.patch("vhost_helper.main.add_entry")
-    mock_create = mocker.patch("vhost_helper.providers.nginx.NginxProvider.create_vhost")
+    mock_create = mocker.patch(
+        "vhost_helper.providers.nginx.NginxProvider.create_vhost"
+    )
 
-    runner.invoke(app, ["create", "static.test", str(doc_root), "--python-port", "9000"])
+    runner.invoke(
+        app, ["create", "static.test", str(doc_root), "--python-port", "9000"]
+    )
 
     assert mock_create.called
     config_arg: VHostConfig = mock_create.call_args[0][0]
@@ -341,6 +367,7 @@ def test_cli_python_port_without_python_flag_uses_static_runtime(doc_root, mocke
 # ---------------------------------------------------------------------------
 # Domain validation edge cases
 # ---------------------------------------------------------------------------
+
 
 def test_single_char_domain_rejected():
     """A single-character domain must be rejected (too short for the regex)."""
@@ -372,12 +399,15 @@ def test_domain_ending_with_dot_rejected():
 # Template: unknown runtime produces no active location block
 # ---------------------------------------------------------------------------
 
+
 def test_unknown_runtime_produces_no_active_fastcgi_or_proxy():
     """An unknown runtime string must not emit any active fastcgi_pass or proxy_pass."""
     config = _render(runtime="ruby")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert not any("fastcgi_pass" in l for l in active_lines)
-    assert not any("proxy_pass" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not any("fastcgi_pass" in line for line in active_lines)
+    assert not any("proxy_pass" in line for line in active_lines)
 
 
 def test_unknown_runtime_still_produces_two_server_blocks():
@@ -389,6 +419,7 @@ def test_unknown_runtime_still_produces_two_server_blocks():
 # ---------------------------------------------------------------------------
 # VHostConfig: php_socket stored correctly
 # ---------------------------------------------------------------------------
+
 
 def test_vhost_config_php_socket_stored_as_provided(tmp_path):
     """php_socket must be stored exactly as supplied."""
@@ -416,11 +447,12 @@ def test_vhost_config_rhel_php_socket_stored(tmp_path):
 # Template: port is rendered into both server blocks
 # ---------------------------------------------------------------------------
 
+
 def test_template_custom_port_appears_in_main_server_block():
     """A non-default port must appear in the main server block listen directive."""
     config = _render(port=8080)
-    lines_with_listen = [l for l in config.splitlines() if "listen" in l]
-    assert any("8080" in l for l in lines_with_listen)
+    lines_with_listen = [line for line in config.splitlines() if "listen" in line]
+    assert any("8080" in line for line in lines_with_listen)
 
 
 def test_template_custom_port_appears_in_redirect_block():
@@ -433,6 +465,7 @@ def test_template_custom_port_appears_in_redirect_block():
 # ---------------------------------------------------------------------------
 # Template: document_root quoted correctly
 # ---------------------------------------------------------------------------
+
 
 def test_template_document_root_with_spaces_renders():
     """document_root with spaces must be quoted in the template output."""

@@ -15,14 +15,11 @@ Covers:
 - CLI create rollback on NginxProvider failure
 - NginxProvider temp file cleanup on mv failure
 """
-import os
+
 import subprocess
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
-from jinja2 import Environment, FileSystemLoader
 from typer.testing import CliRunner
 
 from vhost_helper.main import app, validate_domain
@@ -43,6 +40,7 @@ TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_cp(returncode: int = 0) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(args=[], returncode=returncode)
@@ -74,6 +72,7 @@ def _render(
 # get_sudo_prefix() edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestGetSudoPrefix:
     def test_returns_empty_when_running_as_root(self, mocker):
         mocker.patch("vhost_helper.utils.os.getuid", return_value=0)
@@ -96,6 +95,7 @@ class TestGetSudoPrefix:
 # ---------------------------------------------------------------------------
 # run_elevated_command() — stdin PIPE/DEVNULL blocked for any call
 # ---------------------------------------------------------------------------
+
 
 class TestRunElevatedCommandStdinValidation:
     def test_pipe_blocked_on_non_sudo_command(self):
@@ -124,6 +124,7 @@ class TestRunElevatedCommandStdinValidation:
 # hostfile.add_entry() — direct write path (no sudo prefix / root user)
 # ---------------------------------------------------------------------------
 
+
 class TestHostfileAddEntryDirectWrite:
     def test_add_entry_writes_directly_when_no_sudo(self, mocker, tmp_path):
         """When get_sudo_prefix returns [], entry is written via direct file I/O."""
@@ -131,6 +132,7 @@ class TestHostfileAddEntryDirectWrite:
         hosts_file.write_text("127.0.0.1\tlocalhost\n")
 
         import vhost_helper.hostfile as hf
+
         old = hf.HOSTS_FILE
         hf.HOSTS_FILE = str(hosts_file)
 
@@ -152,6 +154,7 @@ class TestHostfileAddEntryDirectWrite:
         hosts_file.write_text("127.0.0.1\texisting.test\n")
 
         import vhost_helper.hostfile as hf
+
         old = hf.HOSTS_FILE
         hf.HOSTS_FILE = str(hosts_file)
         mock_run = mocker.patch("vhost_helper.utils.subprocess.run")
@@ -167,6 +170,7 @@ class TestHostfileAddEntryDirectWrite:
 # ---------------------------------------------------------------------------
 # NginxProvider.validate_config() — OSError path
 # ---------------------------------------------------------------------------
+
 
 class TestNginxValidateConfigEdgeCases:
     def test_returns_false_on_file_not_found(self, mocker):
@@ -201,6 +205,7 @@ class TestNginxValidateConfigEdgeCases:
 # NginxProvider.reload() — fallback and double-fail paths
 # ---------------------------------------------------------------------------
 
+
 class TestNginxReload:
     def test_fallback_nginx_s_reload_when_systemctl_fails(self, mocker):
         """When systemctl reload fails, nginx -s reload is attempted as fallback."""
@@ -209,8 +214,8 @@ class TestNginxReload:
         def side_effect(cmd, **kwargs):
             call_count[0] += 1
             if "systemctl" in cmd:
-                return _make_cp(1)   # systemctl fails
-            return _make_cp(0)       # nginx -s reload succeeds
+                return _make_cp(1)  # systemctl fails
+            return _make_cp(0)  # nginx -s reload succeeds
 
         mocker.patch("vhost_helper.utils.subprocess.run", side_effect=side_effect)
         mocker.patch("vhost_helper.utils._console")
@@ -239,6 +244,7 @@ class TestNginxReload:
 # ---------------------------------------------------------------------------
 # NginxProvider.create_vhost() — temp file cleanup on failure
 # ---------------------------------------------------------------------------
+
 
 class TestNginxCreateVhostTempCleanup:
     def test_temp_file_removed_on_mv_failure(self, mocker, tmp_path):
@@ -280,6 +286,7 @@ class TestNginxCreateVhostTempCleanup:
 # Template rendering — www-prefix domain redirect logic
 # ---------------------------------------------------------------------------
 
+
 class TestTemplateWwwRedirect:
     def test_www_domain_redirects_to_non_www(self):
         """Input www.example.test → redirect_domain is example.test."""
@@ -296,7 +303,7 @@ class TestTemplateWwwRedirect:
         rendered = _render(domain="mysite.test")
         assert "return 301" in rendered
         assert "302" not in rendered
-        
+
     def test_http_mode_uses_custom_port(self):
         """HTTP mode must honour the port variable."""
         rendered = _render(domain="custom.test", port=8080)
@@ -308,11 +315,13 @@ class TestTemplateWwwRedirect:
 # os_detector.get_os_info() — edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestOsDetectorEdgeCases:
     def test_raises_file_not_found_when_script_missing(self, mocker):
         """If detect_os.sh is not found, FileNotFoundError is raised."""
         mocker.patch("vhost_helper.os_detector.Path.exists", return_value=False)
         from vhost_helper.os_detector import get_os_info
+
         with pytest.raises(FileNotFoundError, match="OS detection script not found"):
             get_os_info()
 
@@ -326,6 +335,7 @@ class TestOsDetectorEdgeCases:
             ),
         )
         from vhost_helper.os_detector import get_os_info
+
         info = get_os_info()
         assert info.family == "arch"
         assert info.id == "arch"
@@ -340,6 +350,7 @@ class TestOsDetectorEdgeCases:
             ),
         )
         from vhost_helper.os_detector import get_os_info
+
         info = get_os_info()
         assert info.family == "rhel"
 
@@ -353,6 +364,7 @@ class TestOsDetectorEdgeCases:
             ),
         )
         from vhost_helper.os_detector import get_os_info
+
         info = get_os_info()
         assert info.family == "unknown"
 
@@ -360,6 +372,7 @@ class TestOsDetectorEdgeCases:
 # ---------------------------------------------------------------------------
 # validate_domain() — boundary and edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestValidateDomainEdgeCases:
     def test_empty_string_raises_value_error(self):
@@ -409,6 +422,7 @@ class TestValidateDomainEdgeCases:
 # ---------------------------------------------------------------------------
 # CLI create — rollback when NginxProvider.create_vhost raises
 # ---------------------------------------------------------------------------
+
 
 class TestCliCreateRollback:
     def test_rollback_removes_hostfile_entry_on_nginx_failure(self, mocker, tmp_path):

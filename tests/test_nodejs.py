@@ -16,10 +16,9 @@ Covers:
 - CLI integration: `vhost create --runtime nodejs --node-port 8080`
 - CLI integration: `vhost create --runtime nodejs --node-socket /run/app/app.sock`
 """
+
 import pytest
-from pathlib import Path
 from typer.testing import CliRunner
-from unittest.mock import patch
 
 from vhost_helper.models import VHostConfig, ServerType, RuntimeMode
 from vhost_helper.providers import nginx as nginx_module
@@ -32,6 +31,7 @@ runner = CliRunner()
 # ---------------------------------------------------------------------------
 # Model / enum tests
 # ---------------------------------------------------------------------------
+
 
 def test_runtime_mode_has_nodejs():
     assert RuntimeMode.NODEJS == "nodejs"
@@ -90,6 +90,7 @@ def test_vhost_config_node_socket_set(tmp_path):
 # ---------------------------------------------------------------------------
 # Template rendering tests
 # ---------------------------------------------------------------------------
+
 
 def _make_nodejs_config(tmp_path, server_type, node_port=3000, node_socket=None):
     doc_root = tmp_path / "www"
@@ -285,6 +286,7 @@ def test_apache_default_template_nodejs_branch(tmp_path):
 # Provider unit tests (mocked filesystem)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def patched_nginx_provider(mocker, tmp_path):
     sites_available = tmp_path / "sites-available"
@@ -296,7 +298,9 @@ def patched_nginx_provider(mocker, tmp_path):
     mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", sites_enabled)
     mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", None)
     mocker.patch("vhost_helper.providers.nginx.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.nginx.is_selinux_enforcing", return_value=False)
+    mocker.patch(
+        "vhost_helper.providers.nginx.is_selinux_enforcing", return_value=False
+    )
 
     mock_run = mocker.patch("vhost_helper.providers.nginx.run_elevated_command")
     provider = nginx_module.NginxProvider()
@@ -314,11 +318,15 @@ def patched_apache_provider(mocker, tmp_path):
     sites_available.mkdir()
     sites_enabled.mkdir()
 
-    mocker.patch("vhost_helper.providers.apache.APACHE_SITES_AVAILABLE", sites_available)
+    mocker.patch(
+        "vhost_helper.providers.apache.APACHE_SITES_AVAILABLE", sites_available
+    )
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_ENABLED", sites_enabled)
     mocker.patch("vhost_helper.providers.apache.APACHE_SITES_DISABLED", None)
     mocker.patch("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.apache.is_selinux_enforcing", return_value=False)
+    mocker.patch(
+        "vhost_helper.providers.apache.is_selinux_enforcing", return_value=False
+    )
 
     mock_run = mocker.patch("vhost_helper.providers.apache.run_elevated_command")
     provider = apache_module.ApacheProvider()
@@ -374,7 +382,7 @@ def test_nginx_provider_nodejs_with_custom_port(patched_nginx_provider, tmp_path
     )
     patched_nginx_provider.create_vhost(config, service_running=True)
     # Verify that a config file was written containing the custom port
-    conf_file = patched_nginx_provider.available / "node-app.local.conf"
+    patched_nginx_provider.available / "node-app.local.conf"
     mv_calls = [c.args[0] for c in patched_nginx_provider.mock_run.call_args_list]
     assert any("mv" in cmd for cmd in mv_calls)
 
@@ -397,6 +405,7 @@ def test_apache_provider_nodejs_with_socket(patched_apache_provider, tmp_path):
 # ---------------------------------------------------------------------------
 # CLI integration tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_nginx_cli_setup(mocker, tmp_path):
@@ -428,11 +437,18 @@ def test_cli_create_nodejs_default_port(mock_nginx_cli_setup, tmp_path):
     doc_root = tmp_path / "www"
     doc_root.mkdir()
 
-    result = runner.invoke(app, [
-        "create", "node-app.local", str(doc_root),
-        "--provider", "nginx",
-        "--runtime", "nodejs",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "create",
+            "node-app.local",
+            str(doc_root),
+            "--provider",
+            "nginx",
+            "--runtime",
+            "nodejs",
+        ],
+    )
     assert result.exit_code == 0, result.stdout
     call_args = nginx_module.NginxProvider.create_vhost.call_args
     assert call_args is not None
@@ -448,11 +464,17 @@ def test_cli_create_nodejs_flag(mock_nginx_cli_setup, tmp_path):
     doc_root = tmp_path / "www"
     doc_root.mkdir()
 
-    result = runner.invoke(app, [
-        "create", "node-app.local", str(doc_root),
-        "--provider", "nginx",
-        "--nodejs",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "create",
+            "node-app.local",
+            str(doc_root),
+            "--provider",
+            "nginx",
+            "--nodejs",
+        ],
+    )
     assert result.exit_code == 0, result.stdout
     call_args = nginx_module.NginxProvider.create_vhost.call_args
     config_arg = call_args.args[0] if call_args.args else call_args[0][0]
@@ -466,12 +488,20 @@ def test_cli_create_nodejs_custom_port(mock_nginx_cli_setup, tmp_path):
     doc_root = tmp_path / "www"
     doc_root.mkdir()
 
-    result = runner.invoke(app, [
-        "create", "node-app.local", str(doc_root),
-        "--provider", "nginx",
-        "--runtime", "nodejs",
-        "--node-port", "8080",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "create",
+            "node-app.local",
+            str(doc_root),
+            "--provider",
+            "nginx",
+            "--runtime",
+            "nodejs",
+            "--node-port",
+            "8080",
+        ],
+    )
     assert result.exit_code == 0, result.stdout
     call_args = nginx_module.NginxProvider.create_vhost.call_args
     config_arg = call_args.args[0] if call_args.args else call_args[0][0]
@@ -484,12 +514,20 @@ def test_cli_create_nodejs_socket(mock_nginx_cli_setup, tmp_path):
     doc_root = tmp_path / "www"
     doc_root.mkdir()
 
-    result = runner.invoke(app, [
-        "create", "node-app.local", str(doc_root),
-        "--provider", "nginx",
-        "--runtime", "nodejs",
-        "--node-socket", "/run/app/app.sock",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "create",
+            "node-app.local",
+            str(doc_root),
+            "--provider",
+            "nginx",
+            "--runtime",
+            "nodejs",
+            "--node-socket",
+            "/run/app/app.sock",
+        ],
+    )
     assert result.exit_code == 0, result.stdout
     call_args = nginx_module.NginxProvider.create_vhost.call_args
     config_arg = call_args.args[0] if call_args.args else call_args[0][0]
@@ -502,12 +540,18 @@ def test_cli_nodejs_and_php_mutually_exclusive(mock_nginx_cli_setup, tmp_path):
     doc_root = tmp_path / "www"
     doc_root.mkdir()
 
-    result = runner.invoke(app, [
-        "create", "node-app.local", str(doc_root),
-        "--provider", "nginx",
-        "--nodejs",
-        "--php",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "create",
+            "node-app.local",
+            str(doc_root),
+            "--provider",
+            "nginx",
+            "--nodejs",
+            "--php",
+        ],
+    )
     assert result.exit_code != 0 or "mutually exclusive" in result.stdout
 
 
@@ -517,11 +561,17 @@ def test_cli_nodejs_and_python_mutually_exclusive(mock_nginx_cli_setup, tmp_path
     doc_root = tmp_path / "www"
     doc_root.mkdir()
 
-    result = runner.invoke(app, [
-        "create", "node-app.local", str(doc_root),
-        "--provider", "nginx",
-        "--runtime", "nodejs",
-        "--python",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "create",
+            "node-app.local",
+            str(doc_root),
+            "--provider",
+            "nginx",
+            "--runtime",
+            "nodejs",
+            "--python",
+        ],
+    )
     assert result.exit_code != 0 or "mutually exclusive" in result.stdout
-

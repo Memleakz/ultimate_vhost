@@ -1,11 +1,12 @@
 import subprocess
-import os
 import shutil
 from pathlib import Path
 from .models import OSInfo
 
 # Canonical OS IDs per family
-_DEBIAN_IDS = frozenset({"debian", "ubuntu", "linuxmint", "pop", "elementary", "raspbian", "kali"})
+_DEBIAN_IDS = frozenset(
+    {"debian", "ubuntu", "linuxmint", "pop", "elementary", "raspbian", "kali"}
+)
 _RHEL_IDS = frozenset({"rhel", "centos", "fedora", "almalinux", "rocky", "ol", "amzn"})
 
 
@@ -50,22 +51,24 @@ def get_os_info() -> OSInfo:
     """Executes bin/detect_os.sh and returns parsed OS data."""
     # Try to find detect_os.sh relative to project root
     script_path = Path(__file__).parent.parent.parent / "bin" / "detect_os.sh"
-    
+
     if not script_path.exists():
         raise FileNotFoundError(f"OS detection script not found at {script_path}")
 
     try:
-        result = subprocess.run([str(script_path)], capture_output=True, text=True, check=True)
-        lines = result.stdout.strip().split('\n')
-        
+        result = subprocess.run(
+            [str(script_path)], capture_output=True, text=True, check=True
+        )
+        lines = result.stdout.strip().split("\n")
+
         info = {}
         for line in lines:
-            if '=' in line:
-                key, value = line.split('=', 1)
+            if "=" in line:
+                key, value = line.split("=", 1)
                 info[key.strip()] = value.strip()
 
-        os_id = info.get('ID', 'unknown')
-        
+        os_id = info.get("ID", "unknown")
+
         # Determine OS family
         family = "unknown"
         if os_id in ["ubuntu", "debian"]:
@@ -75,11 +78,7 @@ def get_os_info() -> OSInfo:
         elif os_id in ["arch"]:
             family = "arch"
 
-        return OSInfo(
-            id=os_id,
-            version=info.get('VERSION', 'unknown'),
-            family=family
-        )
+        return OSInfo(id=os_id, version=info.get("VERSION", "unknown"), family=family)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"OS detection failed: {e.stderr}")
     except Exception as e:
@@ -95,7 +94,7 @@ def is_selinux_enforcing() -> bool:
     """
     if not shutil.which("getenforce"):
         return False
-    
+
     try:
         result = subprocess.run(["getenforce"], capture_output=True, text=True)
         # Defensive check for poorly mocked subprocess.run in other tests

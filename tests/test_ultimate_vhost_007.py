@@ -18,27 +18,25 @@ Acceptance criteria verified here:
      - Warning text matches the constant.
      - Tool does not abort when stdin is not a TTY.
 """
+
 import subprocess
-import sys
 from io import StringIO
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from vhost_helper.utils import (
-    _ELEVATED_MESSAGE,
     _NON_TTY_WARNING,
     preflight_sudo_check,
     run_elevated_command,
     set_active_live,
-    _active_live,
 )
 import vhost_helper.utils as utils_module
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_completed(returncode: int = 0) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(args=[], returncode=returncode)
@@ -47,6 +45,7 @@ def _make_completed(returncode: int = 0) -> subprocess.CompletedProcess:
 # ---------------------------------------------------------------------------
 # 3.1 — Pre-flight sudo cache warm-up
 # ---------------------------------------------------------------------------
+
 
 def test_preflight_returns_immediately_when_root(mocker):
     """Root user (UID 0) should skip sudo -v entirely."""
@@ -92,9 +91,7 @@ def test_preflight_does_not_raise_on_successful_sudo_v(mocker):
     mocker.patch("vhost_helper.utils.sys.stdin.isatty", return_value=True)
     mocker.patch("vhost_helper.utils.sys.stdout")
     mocker.patch("vhost_helper.utils.sys.stderr")
-    mocker.patch(
-        "vhost_helper.utils.subprocess.run", return_value=_make_completed(0)
-    )
+    mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(0))
 
     preflight_sudo_check()  # must not raise
 
@@ -105,10 +102,8 @@ def test_preflight_raises_system_exit_on_sudo_v_failure(mocker):
     mocker.patch("vhost_helper.utils.shutil.which", return_value="/usr/bin/sudo")
     mocker.patch("vhost_helper.utils.sys.stdin.isatty", return_value=True)
     mocker.patch("vhost_helper.utils.sys.stdout")
-    mock_stderr = mocker.patch("vhost_helper.utils.sys.stderr")
-    mocker.patch(
-        "vhost_helper.utils.subprocess.run", return_value=_make_completed(1)
-    )
+    mocker.patch("vhost_helper.utils.sys.stderr")
+    mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(1))
 
     with pytest.raises(SystemExit) as exc_info:
         preflight_sudo_check()
@@ -173,9 +168,9 @@ def test_preflight_called_before_any_spinner_in_create(mocker, tmp_path):
 
     assert "preflight" in call_order, "preflight_sudo_check was never called"
     if "spinner_start" in call_order:
-        assert call_order.index("preflight") < call_order.index("spinner_start"), (
-            "preflight must run before the first spinner"
-        )
+        assert call_order.index("preflight") < call_order.index(
+            "spinner_start"
+        ), "preflight must run before the first spinner"
 
 
 def test_preflight_called_before_any_spinner_in_remove(mocker, tmp_path):
@@ -216,6 +211,7 @@ def test_preflight_called_before_any_spinner_in_remove(mocker, tmp_path):
 # 3.2 — Spinner suspension before privileged subprocess
 # ---------------------------------------------------------------------------
 
+
 def test_spinner_stopped_before_subprocess_run(mocker):
     """Active spinner must be stopped before subprocess.run() is called."""
     call_order = []
@@ -240,9 +236,9 @@ def test_spinner_stopped_before_subprocess_run(mocker):
 
     assert "spinner_stop" in call_order, "Spinner .stop() was never called"
     assert "subprocess_run" in call_order
-    assert call_order.index("spinner_stop") < call_order.index("subprocess_run"), (
-        "Spinner must be stopped before subprocess is spawned"
-    )
+    assert call_order.index("spinner_stop") < call_order.index(
+        "subprocess_run"
+    ), "Spinner must be stopped before subprocess is spawned"
 
 
 def test_active_live_cleared_after_spinner_stop(mocker):
@@ -257,9 +253,9 @@ def test_active_live_cleared_after_spinner_stop(mocker):
     set_active_live(mock_live)
     run_elevated_command(["sudo", "echo", "test"])
 
-    assert utils_module._active_live is None, (
-        "_active_live must be None after run_elevated_command stops the spinner"
-    )
+    assert (
+        utils_module._active_live is None
+    ), "_active_live must be None after run_elevated_command stops the spinner"
 
 
 def test_spinner_not_restarted_inside_run_elevated_command(mocker):
@@ -311,6 +307,7 @@ def test_spinner_not_stopped_for_non_sudo_command(mocker):
 # ---------------------------------------------------------------------------
 # 3.3 — Post-authentication confirmation
 # ---------------------------------------------------------------------------
+
 
 def test_confirmation_printed_after_successful_sudo_command(mocker):
     """✔ Privileges confirmed. must be printed after a successful sudo call."""
@@ -367,12 +364,11 @@ def test_confirmation_printed_exactly_once_per_sudo_invocation(mocker):
     run_elevated_command(["sudo", "chmod", "644", "/etc/hosts"])
 
     confirmation_calls = [
-        c for c in mock_console.print.call_args_list
-        if "Privileges confirmed" in str(c)
+        c for c in mock_console.print.call_args_list if "Privileges confirmed" in str(c)
     ]
-    assert len(confirmation_calls) == 1, (
-        f"Expected exactly 1 confirmation print, got {len(confirmation_calls)}"
-    )
+    assert (
+        len(confirmation_calls) == 1
+    ), f"Expected exactly 1 confirmation print, got {len(confirmation_calls)}"
 
 
 def test_confirmation_uses_green_checkmark(mocker):
@@ -396,12 +392,13 @@ def test_confirmation_uses_green_checkmark(mocker):
 # 3.4 — Non-TTY / CI environment guard
 # ---------------------------------------------------------------------------
 
+
 def test_non_tty_warning_written_to_stderr(mocker):
     """When stdin is not a TTY, a plain-text warning must be written to stderr."""
     mocker.patch("vhost_helper.utils.os.getuid", return_value=1000)
     mocker.patch("vhost_helper.utils.shutil.which", return_value="/usr/bin/sudo")
     mocker.patch("vhost_helper.utils.sys.stdin.isatty", return_value=False)
-    mock_run = mocker.patch("vhost_helper.utils.subprocess.run")
+    mocker.patch("vhost_helper.utils.subprocess.run")
 
     buf = StringIO()
     with patch("vhost_helper.utils.sys.stderr", buf):
@@ -458,12 +455,16 @@ def test_non_tty_sudo_v_not_called(mocker):
 def test_non_tty_constant_text_matches():
     """_NON_TTY_WARNING constant must contain expected key phrases."""
     assert "Non-interactive terminal" in _NON_TTY_WARNING
-    assert "passwordless sudo" in _NON_TTY_WARNING.lower() or "NOPASSWD" in _NON_TTY_WARNING
+    assert (
+        "passwordless sudo" in _NON_TTY_WARNING.lower()
+        or "NOPASSWD" in _NON_TTY_WARNING
+    )
 
 
 # ---------------------------------------------------------------------------
 # Integration: set_active_live / _tracked_status in main
 # ---------------------------------------------------------------------------
+
 
 def test_set_active_live_registers_live_object():
     """set_active_live should update the module-level _active_live."""

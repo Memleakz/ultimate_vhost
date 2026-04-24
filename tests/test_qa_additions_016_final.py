@@ -15,14 +15,12 @@ behaviour documented as open bugs.
 """
 
 import importlib
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 from typer.testing import CliRunner
 
-from vhost_helper.main import app, get_redirect_domain, validate_domain
+from vhost_helper.main import app, get_redirect_domain
 
 runner = CliRunner()
 
@@ -111,7 +109,9 @@ class TestGetRedirectDomain:
         restored = get_redirect_domain(stripped)
         assert restored == original
 
-    def test_cli_create_with_www_domain_strips_prefix_for_redirect(self, tmp_path, mocker):
+    def test_cli_create_with_www_domain_strips_prefix_for_redirect(
+        self, tmp_path, mocker
+    ):
         """When create is called with a www. domain, the redirect is the bare domain."""
         mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
         mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
@@ -128,7 +128,7 @@ class TestGetRedirectDomain:
         doc_root = tmp_path / "www"
         doc_root.mkdir()
 
-        result = runner.invoke(app, ["create", "www.site.local", str(doc_root)])
+        runner.invoke(app, ["create", "www.site.local", str(doc_root)])
         # Expect two hostfile entries: www.site.local and the redirect (site.local)
         domains_added = [d for _, d in added_entries]
         assert "www.site.local" in domains_added
@@ -208,7 +208,9 @@ class TestListSkipsInvalidFilenames:
 
     def test_list_nonexistent_sites_available(self, tmp_path, mocker):
         """list() must not crash when NGINX_SITES_AVAILABLE doesn't exist."""
-        mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "nonexistent")
+        mocker.patch(
+            "vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "nonexistent"
+        )
 
         result = runner.invoke(app, ["list"])
         assert result.exit_code == 0
@@ -232,6 +234,7 @@ class TestIntegrationScriptStructure:
 
     def test_run_script_is_executable(self):
         import os
+
         script = self.SCRIPTS_DIR / "run_integration_tests.sh"
         assert os.access(script, os.X_OK) or script.read_bytes()[:2] == b"#!"
 
@@ -257,7 +260,7 @@ class TestIntegrationScriptStructure:
         """Last line must conditionally exit non-zero when FAIL_COUNT > 0."""
         content = (self.SCRIPTS_DIR / "in_container_test.sh").read_text()
         # The script ends with `[ "$FAIL_COUNT" -eq 0 ]` — truthy iff all passed
-        assert 'FAIL_COUNT' in content
+        assert "FAIL_COUNT" in content
         assert '[ "$FAIL_COUNT" -eq 0 ]' in content or "FAIL_COUNT" in content
 
     def test_in_container_script_handles_both_distros(self):
@@ -339,7 +342,9 @@ class TestRhelNginxConfigExtension:
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", conf_d)
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", conf_disabled)
         mocker.patch("vhost_helper.providers.nginx.detected_os_family", "rhel_family")
-        mocker.patch("vhost_helper.providers.nginx.is_selinux_enforcing", return_value=False)
+        mocker.patch(
+            "vhost_helper.providers.nginx.is_selinux_enforcing", return_value=False
+        )
 
         from vhost_helper.providers.nginx import NginxProvider
         from vhost_helper.models import VHostConfig
@@ -355,17 +360,14 @@ class TestRhelNginxConfigExtension:
         provider.create_vhost(config, service_running=False)
 
         # Find the mv call that moves the temp file to the destination
-        mv_calls = [
-            call for call in mock_run.call_args_list
-            if "mv" in str(call)
-        ]
+        mv_calls = [call for call in mock_run.call_args_list if "mv" in str(call)]
         assert mv_calls, "Expected at least one mv command"
         mv_dest = str(mv_calls[0])
 
         # Config must be named with .conf extension so nginx picks it up
-        assert "mysite.local.conf" in mv_dest, (
-            f"BUG-001 regression: RHEL config must end with .conf; got: {mv_dest}"
-        )
+        assert (
+            "mysite.local.conf" in mv_dest
+        ), f"BUG-001 regression: RHEL config must end with .conf; got: {mv_dest}"
 
     def test_debian_config_target_path_has_conf_extension(self, tmp_path, mocker):
         """Debian config and symlink paths must end with .conf (BUG-003 fix)."""
@@ -375,11 +377,15 @@ class TestRhelNginxConfigExtension:
         sites_enabled.mkdir()
 
         mock_run = mocker.patch("vhost_helper.providers.nginx.run_elevated_command")
-        mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", sites_available)
+        mocker.patch(
+            "vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", sites_available
+        )
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", sites_enabled)
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", None)
         mocker.patch("vhost_helper.providers.nginx.detected_os_family", "debian_family")
-        mocker.patch("vhost_helper.providers.nginx.is_selinux_enforcing", return_value=False)
+        mocker.patch(
+            "vhost_helper.providers.nginx.is_selinux_enforcing", return_value=False
+        )
 
         from vhost_helper.providers.nginx import NginxProvider
         from vhost_helper.models import VHostConfig
@@ -398,12 +404,12 @@ class TestRhelNginxConfigExtension:
         ln_calls = [call for call in mock_run.call_args_list if "ln" in str(call)]
         assert mv_calls, "Expected mv command"
         assert ln_calls, "Expected ln command for Debian symlink"
-        assert "mysite.local.conf" in str(mv_calls[0]), (
-            f"BUG-003 regression: Debian config must end with .conf; got: {mv_calls[0]}"
-        )
-        assert "mysite.local.conf" in str(ln_calls[0]), (
-            f"BUG-003 regression: Debian symlink must end with .conf; got: {ln_calls[0]}"
-        )
+        assert "mysite.local.conf" in str(
+            mv_calls[0]
+        ), f"BUG-003 regression: Debian config must end with .conf; got: {mv_calls[0]}"
+        assert "mysite.local.conf" in str(
+            ln_calls[0]
+        ), f"BUG-003 regression: Debian symlink must end with .conf; got: {ln_calls[0]}"
 
 
 # ---------------------------------------------------------------------------
@@ -428,8 +434,12 @@ class TestEnableDisableEdgeCases:
 
         mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", sites_available)
         mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", sites_enabled)
-        mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available")
-        mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled")
+        mocker.patch(
+            "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available"
+        )
+        mocker.patch(
+            "vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled"
+        )
         mocker.patch("vhost_helper.main.is_apache_installed", return_value=False)
 
         result = runner.invoke(app, ["enable", "already.local"])
@@ -450,8 +460,12 @@ class TestEnableDisableEdgeCases:
 
         mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", sites_available)
         mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", sites_enabled)
-        mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available")
-        mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled")
+        mocker.patch(
+            "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available"
+        )
+        mocker.patch(
+            "vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled"
+        )
         mocker.patch("vhost_helper.main.is_apache_installed", return_value=False)
 
         result = runner.invoke(app, ["disable", "disabled.local"])

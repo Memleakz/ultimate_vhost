@@ -4,8 +4,8 @@ QA additions for ULTIMATE_VHOST-013 — SELinux Context Handling.
 Covers acceptance criteria, error-message wording, edge-cases, and
 platform-specificity checks that were absent from the pre-existing suite.
 """
+
 import subprocess
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,10 +14,10 @@ from vhost_helper import os_detector
 from vhost_helper.models import VHostConfig, ServerType, RuntimeMode
 from vhost_helper.providers.nginx import NginxProvider
 
-
 # ---------------------------------------------------------------------------
 # Helpers / shared fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def vhost_config(tmp_path):
@@ -67,6 +67,7 @@ def patched_provider(mocker, tmp_path):
 # AC-1 / AC-2: SELinux enforcing → chcon called with correct arguments
 # ---------------------------------------------------------------------------
 
+
 class TestSelinuxContextApplication:
     def test_chcon_called_with_httpd_config_t(self, patched_provider, vhost_config):
         """chcon must use the exact type label 'httpd_config_t'."""
@@ -74,8 +75,7 @@ class TestSelinuxContextApplication:
         patched_provider.create_vhost(vhost_config)
 
         chcon_calls = [
-            c for c in patched_provider.mock_run.call_args_list
-            if "chcon" in c.args[0]
+            c for c in patched_provider.mock_run.call_args_list if "chcon" in c.args[0]
         ]
         assert chcon_calls, "chcon was not called on SELinux-enforcing system"
         cmd = chcon_calls[0].args[0]
@@ -88,11 +88,12 @@ class TestSelinuxContextApplication:
         patched_provider.create_vhost(vhost_config)
 
         chcon_calls = [
-            c for c in patched_provider.mock_run.call_args_list
-            if "chcon" in c.args[0]
+            c for c in patched_provider.mock_run.call_args_list if "chcon" in c.args[0]
         ]
         cmd = chcon_calls[0].args[0]
-        expected_path = str(patched_provider.sites_available / (vhost_config.domain + ".conf"))
+        expected_path = str(
+            patched_provider.sites_available / (vhost_config.domain + ".conf")
+        )
         assert expected_path in cmd
 
     def test_chcon_executed_before_symlink(self, patched_provider, vhost_config):
@@ -107,7 +108,9 @@ class TestSelinuxContextApplication:
         ln_idx = next(i for i, c in enumerate(cmd_names) if "ln" in c)
         assert chcon_idx < ln_idx, "chcon must be called before ln -s"
 
-    def test_reload_called_after_selinux_context_applied(self, patched_provider, vhost_config):
+    def test_reload_called_after_selinux_context_applied(
+        self, patched_provider, vhost_config
+    ):
         """Nginx must be reloaded even on SELinux systems when chcon succeeds."""
         patched_provider.mock_selinux.return_value = True
         patched_provider.create_vhost(vhost_config)
@@ -118,6 +121,7 @@ class TestSelinuxContextApplication:
 # AC-3: Non-SELinux systems must NOT execute chcon
 # ---------------------------------------------------------------------------
 
+
 class TestSelinuxSkippedOnNonSelinuxSystems:
     def test_chcon_not_called_on_debian_ubuntu(self, patched_provider, vhost_config):
         """Platform without SELinux: chcon must never appear in any command."""
@@ -125,8 +129,7 @@ class TestSelinuxSkippedOnNonSelinuxSystems:
         patched_provider.create_vhost(vhost_config)
 
         chcon_calls = [
-            c for c in patched_provider.mock_run.call_args_list
-            if "chcon" in c.args[0]
+            c for c in patched_provider.mock_run.call_args_list if "chcon" in c.args[0]
         ]
         assert not chcon_calls, "chcon must NOT be called on non-SELinux systems"
 
@@ -142,8 +145,11 @@ class TestSelinuxSkippedOnNonSelinuxSystems:
 # AC-4: chcon failure → correct error message wording (PRD requirement)
 # ---------------------------------------------------------------------------
 
+
 class TestSelinuxFailureErrorMessage:
-    def test_error_message_says_failed_to_apply(self, patched_provider, vhost_config, mocker):
+    def test_error_message_says_failed_to_apply(
+        self, patched_provider, vhost_config, mocker
+    ):
         """Error message must say 'Failed to apply SELinux context' (PRD AC-4)."""
         patched_provider.mock_selinux.return_value = True
 
@@ -159,11 +165,13 @@ class TestSelinuxFailureErrorMessage:
             patched_provider.create_vhost(vhost_config)
 
         msg = str(exc_info.value)
-        assert "Failed to apply SELinux context" in msg, (
-            f"Error message must say 'Failed to apply SELinux context', got: {msg!r}"
-        )
+        assert (
+            "Failed to apply SELinux context" in msg
+        ), f"Error message must say 'Failed to apply SELinux context', got: {msg!r}"
 
-    def test_error_message_contains_manual_chcon_command(self, patched_provider, vhost_config, mocker):
+    def test_error_message_contains_manual_chcon_command(
+        self, patched_provider, vhost_config, mocker
+    ):
         """Error message must include the manual 'sudo chcon -t httpd_config_t <path>' command."""
         patched_provider.mock_selinux.return_value = True
 
@@ -179,11 +187,13 @@ class TestSelinuxFailureErrorMessage:
             patched_provider.create_vhost(vhost_config)
 
         msg = str(exc_info.value)
-        assert "sudo chcon -t httpd_config_t" in msg, (
-            f"Error message must contain 'sudo chcon -t httpd_config_t', got: {msg!r}"
-        )
+        assert (
+            "sudo chcon -t httpd_config_t" in msg
+        ), f"Error message must contain 'sudo chcon -t httpd_config_t', got: {msg!r}"
 
-    def test_error_message_contains_config_file_path(self, patched_provider, vhost_config, mocker):
+    def test_error_message_contains_config_file_path(
+        self, patched_provider, vhost_config, mocker
+    ):
         """Error message must include the actual path of the failing config file."""
         patched_provider.mock_selinux.return_value = True
 
@@ -199,11 +209,13 @@ class TestSelinuxFailureErrorMessage:
             patched_provider.create_vhost(vhost_config)
 
         msg = str(exc_info.value)
-        assert vhost_config.domain in msg, (
-            f"Error message must contain the domain/path, got: {msg!r}"
-        )
+        assert (
+            vhost_config.domain in msg
+        ), f"Error message must contain the domain/path, got: {msg!r}"
 
-    def test_rollback_called_on_chcon_failure(self, patched_provider, vhost_config, mocker):
+    def test_rollback_called_on_chcon_failure(
+        self, patched_provider, vhost_config, mocker
+    ):
         """remove_vhost must be called with service_running=False on chcon failure."""
         patched_provider.mock_selinux.return_value = True
 
@@ -220,7 +232,9 @@ class TestSelinuxFailureErrorMessage:
 
         mock_remove.assert_called_once_with(vhost_config.domain, service_running=False)
 
-    def test_operation_reported_as_failure_on_chcon_error(self, patched_provider, vhost_config, mocker):
+    def test_operation_reported_as_failure_on_chcon_error(
+        self, patched_provider, vhost_config, mocker
+    ):
         """chcon failure must propagate as RuntimeError (operation failure), not swallowed."""
         patched_provider.mock_selinux.return_value = True
 
@@ -239,6 +253,7 @@ class TestSelinuxFailureErrorMessage:
 # ---------------------------------------------------------------------------
 # Edge cases: is_selinux_enforcing() internals
 # ---------------------------------------------------------------------------
+
 
 class TestIsSelinuxEnforcingEdgeCases:
     @patch("subprocess.run")

@@ -9,16 +9,14 @@ Targets:
 - detect_os_family() with whitespace-only ID value
 - RHEL enable/disable via main.py CLI
 """
+
 import subprocess
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 from vhost_helper.os_detector import detect_os_family
 from vhost_helper.providers.nginx import NginxProvider
-
 
 runner = CliRunner()
 
@@ -27,26 +25,31 @@ runner = CliRunner()
 # detect_os_family() — additional OS IDs from _DEBIAN_IDS and _RHEL_IDS sets
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("os_id", ["kali", "linuxmint", "pop", "elementary"])
 def test_detect_os_family_additional_debian_ids(tmp_path, os_id):
     """Debian-family IDs beyond ubuntu/debian must be classified as debian_family."""
     f = tmp_path / "os-release"
-    f.write_text(f"ID={os_id}\nVERSION_ID=\"1\"\n")
-    assert detect_os_family(str(f)) == "debian_family", f"Expected debian_family for ID={os_id}"
+    f.write_text(f'ID={os_id}\nVERSION_ID="1"\n')
+    assert (
+        detect_os_family(str(f)) == "debian_family"
+    ), f"Expected debian_family for ID={os_id}"
 
 
 @pytest.mark.parametrize("os_id", ["ol", "amzn"])
 def test_detect_os_family_additional_rhel_ids(tmp_path, os_id):
     """RHEL-family IDs beyond rhel/centos/fedora must be classified as rhel_family."""
     f = tmp_path / "os-release"
-    f.write_text(f"ID={os_id}\nVERSION_ID=\"1\"\n")
-    assert detect_os_family(str(f)) == "rhel_family", f"Expected rhel_family for ID={os_id}"
+    f.write_text(f'ID={os_id}\nVERSION_ID="1"\n')
+    assert (
+        detect_os_family(str(f)) == "rhel_family"
+    ), f"Expected rhel_family for ID={os_id}"
 
 
 def test_detect_os_family_whitespace_only_id(tmp_path):
     """ID field containing only whitespace must not match any family (returns unknown)."""
     f = tmp_path / "os-release"
-    f.write_text("ID=   \nVERSION_ID=\"1\"\n")
+    f.write_text('ID=   \nVERSION_ID="1"\n')
     # Whitespace ID lowercases to empty string after strip — no match
     assert detect_os_family(str(f)) == "unknown"
 
@@ -54,20 +57,21 @@ def test_detect_os_family_whitespace_only_id(tmp_path):
 def test_detect_os_family_id_like_case_insensitive(tmp_path):
     """ID_LIKE values must be compared case-insensitively."""
     f = tmp_path / "os-release"
-    f.write_text("ID=somenewdistro\nID_LIKE=\"Debian\"\n")
+    f.write_text('ID=somenewdistro\nID_LIKE="Debian"\n')
     assert detect_os_family(str(f)) == "debian_family"
 
 
 def test_detect_os_family_id_like_rhel_case_insensitive(tmp_path):
     """ID_LIKE=RHEL (upper-case) must still match rhel_family."""
     f = tmp_path / "os-release"
-    f.write_text("ID=oracle\nID_LIKE=\"RHEL\"\n")
+    f.write_text('ID=oracle\nID_LIKE="RHEL"\n')
     assert detect_os_family(str(f)) == "rhel_family"
 
 
 # ---------------------------------------------------------------------------
 # NginxProvider.enable_vhost() Debian — uncovered guard paths
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def debian_nginx_provider(mocker, tmp_path):
@@ -95,7 +99,9 @@ def debian_nginx_provider(mocker, tmp_path):
     return provider
 
 
-def test_enable_vhost_debian_raises_file_not_found_when_config_absent(debian_nginx_provider):
+def test_enable_vhost_debian_raises_file_not_found_when_config_absent(
+    debian_nginx_provider,
+):
     """enable_vhost Debian must raise FileNotFoundError if config file is absent."""
     with pytest.raises(FileNotFoundError, match="not found"):
         debian_nginx_provider.enable_vhost("nonexistent.test")
@@ -126,6 +132,7 @@ def test_disable_vhost_debian_noop_when_link_absent(debian_nginx_provider):
 # main.py enable command — full success path (lines 243-266)
 # ---------------------------------------------------------------------------
 
+
 def test_cli_enable_success_with_service_not_running(mocker, tmp_path):
     """enable command must succeed, adding hostfile entries and enabling Nginx config."""
     from vhost_helper.main import app
@@ -139,10 +146,12 @@ def test_cli_enable_success_with_service_not_running(mocker, tmp_path):
 
     mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", available_dir)
     mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", enabled_dir)
-    mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available")
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available"
+    )
     mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled")
     mocker.patch("vhost_helper.main.is_apache_installed", return_value=False)
-    
+
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
     mocker.patch("vhost_helper.main.preflight_sudo_check")
     mock_add = mocker.patch("vhost_helper.main.add_entry")
@@ -170,7 +179,9 @@ def test_cli_enable_success_with_service_running(mocker, tmp_path):
 
     mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", available_dir)
     mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", enabled_dir)
-    mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available")
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available"
+    )
     mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled")
     mocker.patch("vhost_helper.main.is_apache_installed", return_value=False)
 
@@ -197,7 +208,9 @@ def test_cli_enable_error_path_exits_1(mocker, tmp_path):
 
     mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", available_dir)
     mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", enabled_dir)
-    mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available")
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available"
+    )
     mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled")
     mocker.patch("vhost_helper.main.is_apache_installed", return_value=False)
 
@@ -226,6 +239,7 @@ def test_cli_enable_invalid_domain_exits_1():
 # ---------------------------------------------------------------------------
 # main.py disable command — full success path (lines 287-310)
 # ---------------------------------------------------------------------------
+
 
 def test_cli_disable_success_with_service_not_running(mocker, tmp_path):
     """disable command must remove hostfile entries and disable Nginx config."""

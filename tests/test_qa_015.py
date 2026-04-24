@@ -11,19 +11,20 @@ Covers:
 - main.py enable/disable early-exit when already enabled/disabled
 - README manual installation and Nginx-only clarification
 """
+
 import subprocess
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch
 
 import pytest
 
 from vhost_helper.os_detector import detect_os_family
 from vhost_helper.models import VHostConfig, ServerType, RuntimeMode
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def vhost_config(tmp_path):
@@ -42,24 +43,25 @@ def vhost_config(tmp_path):
 # detect_os_family() — additional edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_detect_os_family_amzn(tmp_path):
     """Amazon Linux (ID=amzn) should classify as rhel_family."""
     f = tmp_path / "os-release"
-    f.write_text("ID=amzn\nVERSION_ID=\"2023\"\n")
+    f.write_text('ID=amzn\nVERSION_ID="2023"\n')
     assert detect_os_family(str(f)) == "rhel_family"
 
 
 def test_detect_os_family_raspbian(tmp_path):
     """Raspbian (ID=raspbian) should classify as debian_family."""
     f = tmp_path / "os-release"
-    f.write_text("ID=raspbian\nVERSION_ID=\"11\"\n")
+    f.write_text('ID=raspbian\nVERSION_ID="11"\n')
     assert detect_os_family(str(f)) == "debian_family"
 
 
 def test_detect_os_family_case_insensitive_id(tmp_path):
     """ID values should be compared case-insensitively (ID=UBUNTU → debian_family)."""
     f = tmp_path / "os-release"
-    f.write_text("ID=UBUNTU\nVERSION_ID=\"22.04\"\n")
+    f.write_text('ID=UBUNTU\nVERSION_ID="22.04"\n')
     assert detect_os_family(str(f)) == "debian_family"
 
 
@@ -97,7 +99,7 @@ def test_detect_os_family_id_like_mixed_families(tmp_path):
     """If ID_LIKE contains both debian and rhel tokens, debian wins (checked first)."""
     f = tmp_path / "os-release"
     # Artificial edge case: ID is unknown, ID_LIKE has both families
-    f.write_text("ID=weird\nID_LIKE=\"debian rhel\"\n")
+    f.write_text('ID=weird\nID_LIKE="debian rhel"\n')
     # debian is checked first in the code
     assert detect_os_family(str(f)) == "debian_family"
 
@@ -106,14 +108,20 @@ def test_detect_os_family_id_like_mixed_families(tmp_path):
 # config.py — RHEL vs Debian path selection
 # ---------------------------------------------------------------------------
 
+
 def test_config_rhel_family_uses_conf_d_paths(mocker):
     """When detect_os_family returns rhel_family, config must set conf.d paths."""
-    mocker.patch("vhost_helper.os_detector.detect_os_family", return_value="rhel_family")
+    mocker.patch(
+        "vhost_helper.os_detector.detect_os_family", return_value="rhel_family"
+    )
     import importlib
     import vhost_helper.config as cfg
+
     importlib.reload(cfg)
 
-    assert str(cfg.NGINX_SITES_AVAILABLE).endswith("conf.d") or "conf.d" in str(cfg.NGINX_SITES_AVAILABLE)
+    assert str(cfg.NGINX_SITES_AVAILABLE).endswith("conf.d") or "conf.d" in str(
+        cfg.NGINX_SITES_AVAILABLE
+    )
     assert cfg.NGINX_SITES_DISABLED is not None
     assert "conf.disabled" in str(cfg.NGINX_SITES_DISABLED)
 
@@ -123,6 +131,7 @@ def test_config_unknown_family_falls_back_to_debian_paths(mocker):
     mocker.patch("vhost_helper.os_detector.detect_os_family", return_value="unknown")
     import importlib
     import vhost_helper.config as cfg
+
     importlib.reload(cfg)
 
     assert "sites-available" in str(cfg.NGINX_SITES_AVAILABLE)
@@ -132,6 +141,7 @@ def test_config_unknown_family_falls_back_to_debian_paths(mocker):
 # ---------------------------------------------------------------------------
 # NginxProvider — RHEL-specific behaviour
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def rhel_provider(mocker, tmp_path):
@@ -146,10 +156,13 @@ def rhel_provider(mocker, tmp_path):
     mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", conf_disabled)
     mocker.patch("vhost_helper.providers.nginx.detected_os_family", "rhel_family")
 
-    mock_run = mocker.patch("vhost_helper.providers.nginx.run_elevated_command",
-                            return_value=subprocess.CompletedProcess([], 0))
+    mock_run = mocker.patch(
+        "vhost_helper.providers.nginx.run_elevated_command",
+        return_value=subprocess.CompletedProcess([], 0),
+    )
 
     from vhost_helper.providers.nginx import NginxProvider
+
     provider = NginxProvider()
     mocker.patch.object(provider, "validate_config", return_value=True)
     mocker.patch.object(provider, "reload")
@@ -173,10 +186,13 @@ def debian_provider(mocker, tmp_path):
     mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", None)
     mocker.patch("vhost_helper.providers.nginx.detected_os_family", "debian_family")
 
-    mock_run = mocker.patch("vhost_helper.providers.nginx.run_elevated_command",
-                            return_value=subprocess.CompletedProcess([], 0))
+    mock_run = mocker.patch(
+        "vhost_helper.providers.nginx.run_elevated_command",
+        return_value=subprocess.CompletedProcess([], 0),
+    )
 
     from vhost_helper.providers.nginx import NginxProvider
+
     provider = NginxProvider()
     mocker.patch.object(provider, "validate_config", return_value=True)
     mocker.patch.object(provider, "reload")
@@ -210,7 +226,9 @@ class TestRhelDisableVhost:
         original_exists = Path.exists
 
         def patched_exists(self):
-            if "conf.disabled" in str(self) and not str(self).endswith("qa015.local.conf"):
+            if "conf.disabled" in str(self) and not str(self).endswith(
+                "qa015.local.conf"
+            ):
                 return False
             return original_exists(self)
 
@@ -218,11 +236,14 @@ class TestRhelDisableVhost:
         rhel_provider.disable_vhost("qa015.local")
 
         mkdir_calls = [c.args[0] for c in rhel_provider.mock_run.call_args_list]
-        assert any("mkdir" in c for c in mkdir_calls), "Expected mkdir -p for conf.disabled"
+        assert any(
+            "mkdir" in c for c in mkdir_calls
+        ), "Expected mkdir -p for conf.disabled"
 
     def test_disable_raises_when_disabled_path_not_configured(self, mocker, tmp_path):
         """disable_vhost must raise RuntimeError if NGINX_SITES_DISABLED is None on RHEL."""
         from vhost_helper.providers.nginx import NginxProvider
+
         conf_d = tmp_path / "conf.d"
         conf_d.mkdir()
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", conf_d)
@@ -232,7 +253,9 @@ class TestRhelDisableVhost:
         mocker.patch("vhost_helper.providers.nginx.run_elevated_command")
 
         provider = NginxProvider()
-        with pytest.raises(RuntimeError, match="NGINX_SITES_DISABLED path is not configured"):
+        with pytest.raises(
+            RuntimeError, match="NGINX_SITES_DISABLED path is not configured"
+        ):
             provider.disable_vhost("test.local")
 
 
@@ -264,6 +287,7 @@ class TestRhelEnableVhost:
     def test_enable_raises_when_disabled_path_not_configured(self, mocker, tmp_path):
         """enable_vhost must raise RuntimeError if NGINX_SITES_DISABLED is None on RHEL."""
         from vhost_helper.providers.nginx import NginxProvider
+
         conf_d = tmp_path / "conf.d"
         conf_d.mkdir()
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", conf_d)
@@ -273,7 +297,9 @@ class TestRhelEnableVhost:
         mocker.patch("vhost_helper.providers.nginx.run_elevated_command")
 
         provider = NginxProvider()
-        with pytest.raises(RuntimeError, match="NGINX_SITES_DISABLED path is not configured"):
+        with pytest.raises(
+            RuntimeError, match="NGINX_SITES_DISABLED path is not configured"
+        ):
             provider.enable_vhost("test.local")
 
 
@@ -297,6 +323,7 @@ class TestRemoveVhostPaths:
 # ---------------------------------------------------------------------------
 # main.py — enable/disable early-exit paths
 # ---------------------------------------------------------------------------
+
 
 class TestMainEnableDisableEarlyExit:
     def test_enable_exits_early_when_already_enabled(self, mocker, tmp_path):
@@ -382,59 +409,77 @@ class TestMainEnableDisableEarlyExit:
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-@pytest.mark.parametrize("readme_path", [
-    _PROJECT_ROOT / "README.md",
-    _PROJECT_ROOT / "src" / "README.md",
-])
+
+@pytest.mark.parametrize(
+    "readme_path",
+    [
+        _PROJECT_ROOT / "README.md",
+        _PROJECT_ROOT / "src" / "README.md",
+    ],
+)
 def test_readme_contains_manual_installation_section(readme_path):
     """Both README files must contain a 'Manual Installation' section (AC Feature 4)."""
     assert readme_path.exists(), f"README not found at {readme_path}"
     content = readme_path.read_text()
-    assert "Manual Installation" in content, (
-        f"'Manual Installation' section missing from {readme_path}"
-    )
+    assert (
+        "Manual Installation" in content
+    ), f"'Manual Installation' section missing from {readme_path}"
 
 
-@pytest.mark.parametrize("readme_path", [
-    _PROJECT_ROOT / "README.md",
-    _PROJECT_ROOT / "src" / "README.md",
-])
+@pytest.mark.parametrize(
+    "readme_path",
+    [
+        _PROJECT_ROOT / "README.md",
+        _PROJECT_ROOT / "src" / "README.md",
+    ],
+)
 def test_readme_manual_installation_has_five_steps(readme_path):
     """Manual Installation section should document cloning, venv, deps, symlink, completion."""
     content = readme_path.read_text()
-    for keyword in ["git clone", "venv", "requirements.txt", "ln -s", "bash_completion"]:
-        assert keyword in content, (
-            f"Manual Installation in {readme_path.name} is missing step for: {keyword!r}"
-        )
+    for keyword in [
+        "git clone",
+        "venv",
+        "requirements.txt",
+        "ln -s",
+        "bash_completion",
+    ]:
+        assert (
+            keyword in content
+        ), f"Manual Installation in {readme_path.name} is missing step for: {keyword!r}"
 
 
-@pytest.mark.parametrize("readme_path", [
-    _PROJECT_ROOT / "README.md",
-    _PROJECT_ROOT / "src" / "README.md",
-])
+@pytest.mark.parametrize(
+    "readme_path",
+    [
+        _PROJECT_ROOT / "README.md",
+        _PROJECT_ROOT / "src" / "README.md",
+    ],
+)
 def test_readme_contains_server_support_clarification(readme_path):
     """Both README files must state supported web servers (Nginx or Apache)."""
     content = readme_path.read_text()
-    assert "Nginx" in content and "Apache" in content, (
-        f"Server support clarification missing from {readme_path}"
-    )
+    assert (
+        "Nginx" in content and "Apache" in content
+    ), f"Server support clarification missing from {readme_path}"
 
 
-@pytest.mark.parametrize("readme_path", [
-    _PROJECT_ROOT / "README.md",
-    _PROJECT_ROOT / "src" / "README.md",
-])
+@pytest.mark.parametrize(
+    "readme_path",
+    [
+        _PROJECT_ROOT / "README.md",
+        _PROJECT_ROOT / "src" / "README.md",
+    ],
+)
 def test_readme_references_install_sh(readme_path):
     """Manual Installation section must cross-reference install.sh (AC Feature 4)."""
     content = readme_path.read_text()
-    assert "install.sh" in content, (
-        f"install.sh not referenced in {readme_path.name}"
-    )
+    assert "install.sh" in content, f"install.sh not referenced in {readme_path.name}"
 
 
 # ---------------------------------------------------------------------------
 # SELinux error message — verifies BUG-001 fix
 # ---------------------------------------------------------------------------
+
 
 def test_selinux_error_message_includes_chcon_command(mocker, vhost_config):
     """Failure message after chcon must include the manual chcon command (BUG-001 fix)."""
@@ -458,7 +503,9 @@ def test_selinux_error_message_includes_chcon_command(mocker, vhost_config):
             raise RuntimeError("permission denied")
         return sp.CompletedProcess(cmd, 0)
 
-    mocker.patch("vhost_helper.providers.nginx.run_elevated_command", side_effect=fail_on_chcon)
+    mocker.patch(
+        "vhost_helper.providers.nginx.run_elevated_command", side_effect=fail_on_chcon
+    )
 
     provider = NginxProvider()
     mocker.patch.object(provider, "remove_vhost")
@@ -467,7 +514,7 @@ def test_selinux_error_message_includes_chcon_command(mocker, vhost_config):
         provider.create_vhost(vhost_config)
 
     msg = str(exc_info.value)
-    assert "sudo chcon -t httpd_config_t" in msg, (
-        f"Error must include manual chcon command; got: {msg!r}"
-    )
+    assert (
+        "sudo chcon -t httpd_config_t" in msg
+    ), f"Error must include manual chcon command; got: {msg!r}"
     assert "Failed to apply SELinux context" in msg

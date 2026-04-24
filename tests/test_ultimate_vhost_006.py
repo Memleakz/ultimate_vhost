@@ -9,22 +9,21 @@ Acceptance criteria verified here:
 3.4  RuntimeError raised with command info when subprocess exits non-zero.
      Successful runs return the CompletedProcess without raising.
 """
+
 import subprocess
-import sys
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from vhost_helper.utils import (
     _ELEVATED_MESSAGE,
-    get_sudo_prefix,
     run_elevated_command,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_completed(returncode: int = 0) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(args=[], returncode=returncode)
@@ -34,8 +33,9 @@ def _make_completed(returncode: int = 0) -> subprocess.CompletedProcess:
 # 3.1 — Stdout / Stderr flushing
 # ---------------------------------------------------------------------------
 
+
 def test_stdout_flushed_before_subprocess_for_sudo_command(mocker):
-    mock_run = mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(0))
+    mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(0))
     mock_stdout = mocker.patch("vhost_helper.utils.sys.stdout")
     mock_stderr = mocker.patch("vhost_helper.utils.sys.stderr")
 
@@ -88,6 +88,7 @@ def test_no_flush_when_no_sudo_in_command(mocker):
 # 3.2 — Pre-prompt message
 # ---------------------------------------------------------------------------
 
+
 def test_elevated_message_constant_exact_text():
     assert _ELEVATED_MESSAGE == (
         "[vhost] Elevated privileges required. You may be prompted for your password."
@@ -112,7 +113,9 @@ def test_prescribed_message_printed_before_subprocess(mocker):
 
     msg_index = call_order.index("message")
     run_index = call_order.index("subprocess_run")
-    assert msg_index < run_index, "Prescribed message must appear before subprocess is spawned"
+    assert (
+        msg_index < run_index
+    ), "Prescribed message must appear before subprocess is spawned"
 
 
 def test_prescribed_message_contains_required_text(mocker):
@@ -146,6 +149,7 @@ def test_no_message_printed_without_sudo(mocker):
 # 3.3 — TTY passthrough (stdin constraints)
 # ---------------------------------------------------------------------------
 
+
 def test_raises_value_error_when_stdin_is_pipe():
     with pytest.raises(ValueError, match="PIPE"):
         run_elevated_command(["sudo", "tee", "-a", "/etc/hosts"], stdin=subprocess.PIPE)
@@ -153,11 +157,15 @@ def test_raises_value_error_when_stdin_is_pipe():
 
 def test_raises_value_error_when_stdin_is_devnull():
     with pytest.raises(ValueError, match="DEVNULL"):
-        run_elevated_command(["sudo", "tee", "-a", "/etc/hosts"], stdin=subprocess.DEVNULL)
+        run_elevated_command(
+            ["sudo", "tee", "-a", "/etc/hosts"], stdin=subprocess.DEVNULL
+        )
 
 
 def test_subprocess_called_with_stdin_none_by_default(mocker):
-    mock_run = mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(0))
+    mock_run = mocker.patch(
+        "vhost_helper.utils.subprocess.run", return_value=_make_completed(0)
+    )
     mocker.patch("vhost_helper.utils.sys.stdout")
     mocker.patch("vhost_helper.utils.sys.stderr")
     mocker.patch("vhost_helper.utils._console")
@@ -169,7 +177,9 @@ def test_subprocess_called_with_stdin_none_by_default(mocker):
 
 
 def test_subprocess_called_with_file_handle_stdin(mocker, tmp_path):
-    mock_run = mocker.patch("vhost_helper.utils.subprocess.run", return_value=_make_completed(0))
+    mock_run = mocker.patch(
+        "vhost_helper.utils.subprocess.run", return_value=_make_completed(0)
+    )
     mocker.patch("vhost_helper.utils.sys.stdout")
     mocker.patch("vhost_helper.utils.sys.stderr")
     mocker.patch("vhost_helper.utils._console")
@@ -191,7 +201,12 @@ def test_no_pipe_or_devnull_in_any_sudo_call_in_nginx_provider(mocker, tmp_path)
     create_vhost must not use stdin=PIPE or stdin=DEVNULL.
     """
     from vhost_helper.providers.nginx import NginxProvider
-    from vhost_helper.models import VHostConfig, ServerType, RuntimeMode, DEFAULT_PHP_SOCKET
+    from vhost_helper.models import (
+        VHostConfig,
+        ServerType,
+        RuntimeMode,
+        DEFAULT_PHP_SOCKET,
+    )
 
     available = tmp_path / "sites-available"
     enabled = tmp_path / "sites-enabled"
@@ -203,8 +218,6 @@ def test_no_pipe_or_devnull_in_any_sudo_call_in_nginx_provider(mocker, tmp_path)
     mocker.patch("vhost_helper.utils.get_sudo_prefix", return_value=[])
 
     observed_stdin_values = []
-
-    original_run = subprocess.run
 
     def capturing_run(cmd, **kwargs):
         observed_stdin_values.append(kwargs.get("stdin"))
@@ -227,14 +240,16 @@ def test_no_pipe_or_devnull_in_any_sudo_call_in_nginx_provider(mocker, tmp_path)
     provider.create_vhost(config, service_running=False)
 
     for val in observed_stdin_values:
-        assert val not in (subprocess.PIPE, subprocess.DEVNULL), (
-            f"subprocess.run was called with stdin={val!r}, which blocks TTY passthrough"
-        )
+        assert val not in (
+            subprocess.PIPE,
+            subprocess.DEVNULL,
+        ), f"subprocess.run was called with stdin={val!r}, which blocks TTY passthrough"
 
 
 # ---------------------------------------------------------------------------
 # 3.4 — Post-privilege execution continuity
 # ---------------------------------------------------------------------------
+
 
 def test_returns_completed_process_on_success(mocker):
     expected = _make_completed(0)

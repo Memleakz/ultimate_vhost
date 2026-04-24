@@ -14,7 +14,7 @@ Requirements:
 Tests are skipped (not failed) when the required binary is absent so the
 suite remains green in minimal environments that only have one server installed.
 """
-import os
+
 import shutil
 import subprocess
 import tempfile
@@ -61,9 +61,7 @@ def _nginx_test(config_fragment: str) -> tuple[bool, str]:
         error_log = Path(tmpdir) / "error.log"
 
         # Replace any /var/log/nginx paths in the fragment with writable tmp paths
-        safe_fragment = config_fragment.replace(
-            "/var/log/nginx/", str(tmpdir) + "/"
-        )
+        safe_fragment = config_fragment.replace("/var/log/nginx/", str(tmpdir) + "/")
         # Replace port 80 listen directives with 8080 to avoid permission errors
         safe_fragment = safe_fragment.replace("listen 80;", "listen 8080;")
 
@@ -91,8 +89,10 @@ def _nginx_test(config_fragment: str) -> tuple[bool, str]:
         output = result.stdout + result.stderr
         # nginx -t exits 0 only when syntax is OK AND pid file can be written.
         # The "syntax is ok" message is the reliable indicator in our non-root env.
-        passed = "syntax is ok" in output and "configuration file" in output and (
-            "is successful" in output or result.returncode == 0
+        passed = (
+            "syntax is ok" in output
+            and "configuration file" in output
+            and ("is successful" in output or result.returncode == 0)
         )
         return passed, output
     finally:
@@ -110,16 +110,14 @@ def _httpd_test(config_fragment: str) -> tuple[bool, str]:
     try:
         pid_path = Path(tmpdir) / "httpd.pid"
         error_log = Path(tmpdir) / "error.log"
-        access_log = Path(tmpdir) / "access.log"
+        Path(tmpdir) / "access.log"
 
         mod_dir = "/usr/lib64/httpd/modules"
 
         # Replace any unwritable log paths (${APACHE_LOG_DIR} or /var/log/httpd/)
         safe_fragment = config_fragment.replace(
             "${APACHE_LOG_DIR}/", str(tmpdir) + "/"
-        ).replace(
-            "/var/log/httpd/", str(tmpdir) + "/"
-        )
+        ).replace("/var/log/httpd/", str(tmpdir) + "/")
         # Replace port 80 to avoid permission errors
         safe_fragment = safe_fragment.replace("*:80>", "*:8081>")
 
@@ -176,6 +174,7 @@ requires_httpd = pytest.mark.skipif(
 # Nginx — nodejs-proxy template (PRD §3.3 AC-4)
 # ===========================================================================
 
+
 class TestNginxNodejsLiveSyntax:
     """AC-4: Generated Nginx nodejs-proxy configuration passes `nginx -t`."""
 
@@ -191,7 +190,9 @@ class TestNginxNodejsLiveSyntax:
             node_socket=None,
         )
         passed, output = _nginx_test(rendered)
-        assert passed, f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
+        assert (
+            passed
+        ), f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
 
     @requires_nginx
     def test_nginx_nodejs_custom_port_passes_syntax_check(self):
@@ -205,7 +206,9 @@ class TestNginxNodejsLiveSyntax:
             node_socket=None,
         )
         passed, output = _nginx_test(rendered)
-        assert passed, f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
+        assert (
+            passed
+        ), f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
 
     @requires_nginx
     def test_nginx_nodejs_unix_socket_passes_syntax_check(self):
@@ -219,7 +222,9 @@ class TestNginxNodejsLiveSyntax:
             node_socket="/run/node-app/app.sock",
         )
         passed, output = _nginx_test(rendered)
-        assert passed, f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
+        assert (
+            passed
+        ), f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
 
     @requires_nginx
     def test_nginx_nodejs_www_domain_redirect_passes_syntax_check(self):
@@ -233,7 +238,9 @@ class TestNginxNodejsLiveSyntax:
             node_socket=None,
         )
         passed, output = _nginx_test(rendered)
-        assert passed, f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
+        assert (
+            passed
+        ), f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
 
     @requires_nginx
     def test_nginx_nodejs_non_standard_port_passes_syntax_check(self):
@@ -247,12 +254,15 @@ class TestNginxNodejsLiveSyntax:
             node_socket=None,
         )
         passed, output = _nginx_test(rendered)
-        assert passed, f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
+        assert (
+            passed
+        ), f"nginx -t FAILED.\nRendered config fragment:\n{rendered}\nnginx output:\n{output}"
 
 
 # ===========================================================================
 # Apache — nodejs-proxy template (PRD §3.3 AC-5)
 # ===========================================================================
+
 
 class TestApacheNodejsLiveSyntax:
     """AC-5: Generated Apache nodejs-proxy configuration passes `httpd -t`."""
@@ -270,7 +280,9 @@ class TestApacheNodejsLiveSyntax:
             os_family="rhel_family",
         )
         passed, output = _httpd_test(rendered)
-        assert passed, f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
+        assert (
+            passed
+        ), f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
 
     @requires_httpd
     def test_apache_nodejs_custom_port_rhel_passes_syntax_check(self):
@@ -285,7 +297,9 @@ class TestApacheNodejsLiveSyntax:
             os_family="rhel_family",
         )
         passed, output = _httpd_test(rendered)
-        assert passed, f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
+        assert (
+            passed
+        ), f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
 
     @requires_httpd
     def test_apache_nodejs_unix_socket_rhel_passes_syntax_check(self):
@@ -300,7 +314,9 @@ class TestApacheNodejsLiveSyntax:
             os_family="rhel_family",
         )
         passed, output = _httpd_test(rendered)
-        assert passed, f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
+        assert (
+            passed
+        ), f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
 
     @requires_httpd
     def test_apache_nodejs_www_domain_redirect_passes_syntax_check(self):
@@ -315,7 +331,9 @@ class TestApacheNodejsLiveSyntax:
             os_family="rhel_family",
         )
         passed, output = _httpd_test(rendered)
-        assert passed, f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
+        assert (
+            passed
+        ), f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
 
     @requires_httpd
     def test_apache_nodejs_debian_log_paths_passes_syntax_check(self):
@@ -331,4 +349,6 @@ class TestApacheNodejsLiveSyntax:
         )
         # _httpd_test replaces ${APACHE_LOG_DIR}/ with a writable tmp path
         passed, output = _httpd_test(rendered)
-        assert passed, f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"
+        assert (
+            passed
+        ), f"httpd -t FAILED.\nRendered config fragment:\n{rendered}\nhttpd output:\n{output}"

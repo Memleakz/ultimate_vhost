@@ -6,6 +6,7 @@ from .os_detector import get_os_info, detect_os_family, OSInfo
 # It's resolved relative to this file, so it will work when installed system-wide
 APP_ROOT = Path(__file__).resolve().parent.parent.parent
 
+
 def _get_path(env_var: str, default: str) -> Path:
     """
     Returns a Path object, allowing environment variable overrides ONLY if
@@ -15,6 +16,7 @@ def _get_path(env_var: str, default: str) -> Path:
     if os.getenv("VHOST_TEST_MODE") == "1":
         return Path(os.getenv(env_var, default))
     return Path(default)
+
 
 def initialize_user_config():
     """
@@ -44,7 +46,9 @@ detected_os_family: str = detect_os_family()
 HOSTS_FILE = _get_path("VHOST_HOSTS_FILE", "/etc/hosts")
 
 # Global user-level configuration directory
-USER_CONFIG_DIR = _get_path("VHOST_USER_CONFIG_DIR", str(Path.home() / ".config" / "vhost_helper"))
+USER_CONFIG_DIR = _get_path(
+    "VHOST_USER_CONFIG_DIR", str(Path.home() / ".config" / "vhost_helper")
+)
 USER_TEMPLATES_DIR = USER_CONFIG_DIR / "templates"
 
 # Default bundled templates that ship with the application
@@ -56,17 +60,25 @@ if detected_os_family == "rhel_family":
     NGINX_SITES_AVAILABLE = _get_path("NGINX_SITES_AVAILABLE", "/etc/nginx/conf.d")
     NGINX_SITES_ENABLED = _get_path("NGINX_SITES_ENABLED", "/etc/nginx/conf.d")
     NGINX_SITES_DISABLED = _get_path("NGINX_SITES_DISABLED", "/etc/nginx/conf.disabled")
-    
+
     APACHE_SITES_AVAILABLE = _get_path("APACHE_SITES_AVAILABLE", "/etc/httpd/conf.d")
     APACHE_SITES_ENABLED = _get_path("APACHE_SITES_ENABLED", "/etc/httpd/conf.d")
-    APACHE_SITES_DISABLED = _get_path("APACHE_SITES_DISABLED", "/etc/httpd/conf.disabled")
+    APACHE_SITES_DISABLED = _get_path(
+        "APACHE_SITES_DISABLED", "/etc/httpd/conf.disabled"
+    )
     APACHE_SERVICE_NAME = "httpd"
 else:  # 'debian_family' or 'unknown' — safe default
-    NGINX_SITES_AVAILABLE = _get_path("NGINX_SITES_AVAILABLE", "/etc/nginx/sites-available")
+    NGINX_SITES_AVAILABLE = _get_path(
+        "NGINX_SITES_AVAILABLE", "/etc/nginx/sites-available"
+    )
     NGINX_SITES_ENABLED = _get_path("NGINX_SITES_ENABLED", "/etc/nginx/sites-enabled")
     NGINX_SITES_DISABLED = None  # Not used in Debian-style management
 
-    APACHE_SITES_AVAILABLE = _get_path("APACHE_SITES_AVAILABLE", "/etc/apache2/sites-available")
-    APACHE_SITES_ENABLED = _get_path("APACHE_SITES_ENABLED", "/etc/apache2/sites-enabled")
+    APACHE_SITES_AVAILABLE = _get_path(
+        "APACHE_SITES_AVAILABLE", "/etc/apache2/sites-available"
+    )
+    APACHE_SITES_ENABLED = _get_path(
+        "APACHE_SITES_ENABLED", "/etc/apache2/sites-enabled"
+    )
     APACHE_SITES_DISABLED = None  # Not used in Debian-style management
     APACHE_SERVICE_NAME = "apache2"

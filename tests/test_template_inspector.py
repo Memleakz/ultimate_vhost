@@ -30,6 +30,7 @@ runner = CliRunner()
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _write(tmp_path: Path, filename: str, content: str) -> Path:
     p = tmp_path / filename
     p.write_text(textwrap.dedent(content), encoding="utf-8")
@@ -54,6 +55,7 @@ variables:
 # extract_variables
 # ---------------------------------------------------------------------------
 
+
 class TestExtractVariables:
     def test_simple_variable(self, tmp_path):
         t = _write(tmp_path, "t.j2", "Hello {{ name }}!")
@@ -68,13 +70,17 @@ class TestExtractVariables:
         assert extract_variables(t) == ["domain"]
 
     def test_loop_builtin_excluded(self, tmp_path):
-        t = _write(tmp_path, "t.j2", "{% for item in items %}{{ loop.index }}{% endfor %}")
+        t = _write(
+            tmp_path, "t.j2", "{% for item in items %}{{ loop.index }}{% endfor %}"
+        )
         assert "loop" not in extract_variables(t)
         assert "item" not in extract_variables(t)
         assert "items" in extract_variables(t)
 
     def test_variables_inside_conditional(self, tmp_path):
-        t = _write(tmp_path, "t.j2", "{% if runtime == 'php' %}{{ php_socket }}{% endif %}")
+        t = _write(
+            tmp_path, "t.j2", "{% if runtime == 'php' %}{{ php_socket }}{% endif %}"
+        )
         vars_ = extract_variables(t)
         assert "runtime" in vars_
         assert "php_socket" in vars_
@@ -84,21 +90,29 @@ class TestExtractVariables:
         assert "hosts" in extract_variables(t)
 
     def test_variables_inside_macro(self, tmp_path):
-        t = _write(tmp_path, "t.j2", """\
+        t = _write(
+            tmp_path,
+            "t.j2",
+            """\
             {% macro render(item) %}{{ item.value }}{% endmacro %}
             {{ render(my_item) }}
-        """)
+        """,
+        )
         assert "my_item" in extract_variables(t)
 
     def test_advanced_syntax_no_exception(self, tmp_path):
         """Namespace, call blocks, and whitespace control must not raise."""
-        t = _write(tmp_path, "t.j2", """\
+        t = _write(
+            tmp_path,
+            "t.j2",
+            """\
             {%- set ns = namespace(count=0) -%}
             {%- for x in items -%}
               {%- set ns.count = ns.count + 1 -%}
             {%- endfor -%}
             {{ ns.count }}
-        """)
+        """,
+        )
         result = extract_variables(t)
         assert isinstance(result, list)
 
@@ -114,9 +128,10 @@ class TestExtractVariables:
         missing = tmp_path / "missing.j2"
         assert extract_variables(missing) == []
 
-    @pytest.mark.parametrize("template_path", list(
-        (Path(__file__).parent.parent / "templates").glob("**/*.conf.j2")
-    ))
+    @pytest.mark.parametrize(
+        "template_path",
+        list((Path(__file__).parent.parent / "templates").glob("**/*.conf.j2")),
+    )
     def test_all_existing_templates_no_exception(self, template_path):
         """extract_variables must not raise for any .j2 file in the codebase."""
         result = extract_variables(template_path)
@@ -127,12 +142,16 @@ class TestExtractVariables:
 # extract_metadata
 # ---------------------------------------------------------------------------
 
+
 class TestExtractMetadata:
     def test_valid_full_metadata_block(self, tmp_path):
         t = _write(tmp_path, "t.j2", FULL_METADATA + "{{ domain }}")
         meta = extract_metadata(t)
         assert "domain" in meta
-        assert meta["domain"]["description"] == "The fully-qualified domain name for the virtual host."
+        assert (
+            meta["domain"]["description"]
+            == "The fully-qualified domain name for the virtual host."
+        )
         assert meta["domain"]["default"] is None
         assert meta["port"]["default"] == "80"
 
@@ -182,6 +201,7 @@ class TestExtractMetadata:
 # ---------------------------------------------------------------------------
 # list_templates
 # ---------------------------------------------------------------------------
+
 
 class TestListTemplates:
     def _make_tree(self, tmp_path: Path) -> Path:
@@ -250,6 +270,7 @@ class TestListTemplates:
 # resolve_template_path
 # ---------------------------------------------------------------------------
 
+
 class TestResolveTemplatePath:
     def _make_tree(self, tmp_path: Path) -> Path:
         (tmp_path / "nginx").mkdir()
@@ -296,6 +317,7 @@ class TestResolveTemplatePath:
 # CLI Integration — `vhost templates list`
 # ---------------------------------------------------------------------------
 
+
 class TestTemplatesListCommand:
     def test_list_all_providers_exits_zero(self):
         result = runner.invoke(app, ["templates", "list"])
@@ -331,6 +353,7 @@ class TestTemplatesListCommand:
 # ---------------------------------------------------------------------------
 # CLI Integration — `vhost templates inspect`
 # ---------------------------------------------------------------------------
+
 
 class TestTemplatesInspectCommand:
     def test_inspect_nginx_php_exits_zero(self):

@@ -13,16 +13,16 @@ Verifies all acceptance criteria for Ticket ULTIMATE_VHOST-008:
   9. remove_vhost no-op when neither file nor symlink exist (service_running=False)
  10. cli create with invalid port exits with code 2 (Typer type error)
 """
+
 import subprocess
 import tempfile
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 
 import pytest
 from typer.testing import CliRunner
 
 from vhost_helper.main import app, validate_domain
-from vhost_helper.models import VHostConfig, ServerType, RuntimeMode, DEFAULT_PHP_SOCKET
+from vhost_helper.models import VHostConfig, DEFAULT_PHP_SOCKET
 from vhost_helper.providers.nginx import NginxProvider
 
 runner = CliRunner()
@@ -33,6 +33,7 @@ TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _render(
     domain: str = "example.test",
@@ -60,6 +61,7 @@ def _render(
 # AC-1: --no-ssl flag must be unknown / rejected
 # ---------------------------------------------------------------------------
 
+
 class TestNoSslFlagRejected:
     """PRD §2: vhost create must not recognize --no-ssl."""
 
@@ -84,6 +86,7 @@ class TestNoSslFlagRejected:
 # AC-2: ssl.py must not exist
 # ---------------------------------------------------------------------------
 
+
 class TestSslModuleAbsent:
     """PRD §1: lib/vhost_helper/ssl.py must be deleted."""
 
@@ -99,6 +102,7 @@ class TestSslModuleAbsent:
 # ---------------------------------------------------------------------------
 # AC-3: VHostConfig must have no ssl_enabled field
 # ---------------------------------------------------------------------------
+
 
 class TestModelHasNoSslField:
     """PRD §3: VHostConfig Pydantic model must not contain ssl_enabled."""
@@ -128,6 +132,7 @@ class TestModelHasNoSslField:
 # AC-4: Generated Nginx config must have no SSL directives
 # ---------------------------------------------------------------------------
 
+
 class TestNginxTemplateNoSslDirectives:
     """PRD §4: Generated configs must not contain SSL-related directives."""
 
@@ -146,7 +151,9 @@ class TestNginxTemplateNoSslDirectives:
     def test_no_ssl_certificate_directive(self):
         for runtime in ("static", "php", "python"):
             output = _render(runtime=runtime)
-            assert "ssl_certificate" not in output, f"ssl_certificate found in {runtime} template"
+            assert (
+                "ssl_certificate" not in output
+            ), f"ssl_certificate found in {runtime} template"
 
     def test_no_ssl_certificate_key_directive(self):
         for runtime in ("static", "php", "python"):
@@ -157,12 +164,15 @@ class TestNginxTemplateNoSslDirectives:
         """No server block should unconditionally redirect to port 443."""
         for runtime in ("static", "php", "python"):
             output = _render(runtime=runtime)
-            assert "return 301 https" not in output, f"HTTPS redirect found in {runtime} template"
+            assert (
+                "return 301 https" not in output
+            ), f"HTTPS redirect found in {runtime} template"
 
     def test_template_uses_only_configured_port(self):
         """All listen directives must use the configured port, not hardcoded 443."""
         output = _render(port=8080)
         import re
+
         listen_ports = re.findall(r"listen\s+(\d+)", output)
         for p in listen_ports:
             assert p == "8080", f"Unexpected listen port {p} in template output"
@@ -176,26 +186,30 @@ class TestNginxTemplateNoSslDirectives:
 # AC-5: vhost create lifecycle must never call certbot
 # ---------------------------------------------------------------------------
 
+
 class TestNoCertbotCalls:
     """PRD §1: certbot must never be called during vhost create."""
 
     def test_certbot_not_called_during_create(self, tmp_path, mocker):
-        mocker.patch("vhost_helper.providers.nginx.is_nginx_installed", return_value=True)
-        mocker.patch("vhost_helper.providers.nginx.is_nginx_running", return_value=False)
+        mocker.patch(
+            "vhost_helper.providers.nginx.is_nginx_installed", return_value=True
+        )
+        mocker.patch(
+            "vhost_helper.providers.nginx.is_nginx_running", return_value=False
+        )
         mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
         mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
         mocker.patch("vhost_helper.main.preflight_sudo_check")
         mocker.patch("vhost_helper.main.add_entry")
         mocker.patch("vhost_helper.providers.nginx.NginxProvider.create_vhost")
 
-        mock_run = mocker.patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0))
+        mock_run = mocker.patch(
+            "subprocess.run", return_value=subprocess.CompletedProcess([], 0)
+        )
 
-        result = runner.invoke(app, ["create", "mysite.test", str(tmp_path)])
+        runner.invoke(app, ["create", "mysite.test", str(tmp_path)])
 
-        certbot_calls = [
-            c for c in mock_run.call_args_list
-            if "certbot" in str(c)
-        ]
+        certbot_calls = [c for c in mock_run.call_args_list if "certbot" in str(c)]
         assert certbot_calls == [], f"certbot was invoked: {certbot_calls}"
 
     def test_certbot_not_in_source_code(self):
@@ -203,14 +217,15 @@ class TestNoCertbotCalls:
         lib_dir = Path(__file__).parent.parent / "lib"
         for py_file in lib_dir.rglob("*.py"):
             content = py_file.read_text()
-            assert "certbot" not in content.lower(), (
-                f"certbot reference found in {py_file}"
-            )
+            assert (
+                "certbot" not in content.lower()
+            ), f"certbot reference found in {py_file}"
 
 
 # ---------------------------------------------------------------------------
 # AC-6: Port boundary validation (VHostConfig model)
 # ---------------------------------------------------------------------------
+
 
 class TestPortBoundaryValidation:
     """Port must be an integer in range [1, 65535]."""
@@ -232,13 +247,16 @@ class TestPortBoundaryValidation:
         assert config.port == 65535
 
     def test_cli_create_with_string_port_exits_nonzero(self, tmp_path):
-        result = runner.invoke(app, ["create", "site.test", str(tmp_path), "--port", "notanumber"])
+        result = runner.invoke(
+            app, ["create", "site.test", str(tmp_path), "--port", "notanumber"]
+        )
         assert result.exit_code != 0
 
 
 # ---------------------------------------------------------------------------
 # AC-7: Additional domain validation edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestDomainValidationEdgeCasesQA008:
     def test_underscore_in_domain_rejected(self):
@@ -267,6 +285,7 @@ class TestDomainValidationEdgeCasesQA008:
 # AC-8: remove_vhost is a no-op when files/symlinks are absent
 # ---------------------------------------------------------------------------
 
+
 class TestRemoveVhostNoOpWhenAbsent:
     """remove_vhost must not raise when neither config nor symlink exist."""
 
@@ -278,7 +297,9 @@ class TestRemoveVhostNoOpWhenAbsent:
             available.mkdir()
             enabled.mkdir()
 
-            mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", available)
+            mocker.patch(
+                "vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", available
+            )
             mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", enabled)
             mock_run = mocker.patch(
                 "vhost_helper.utils.subprocess.run",
@@ -291,8 +312,5 @@ class TestRemoveVhostNoOpWhenAbsent:
             provider.remove_vhost("nonexistent.test", service_running=False)
 
             # No subprocess calls should be made if nothing exists
-            sudo_rm_calls = [
-                c for c in mock_run.call_args_list
-                if "rm" in str(c)
-            ]
+            sudo_rm_calls = [c for c in mock_run.call_args_list if "rm" in str(c)]
             assert sudo_rm_calls == []

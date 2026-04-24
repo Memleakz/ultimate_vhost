@@ -1,38 +1,44 @@
-import pytest
-import subprocess
 from pathlib import Path
-from unittest.mock import mock_open, patch
+from unittest.mock import mock_open
 
 from vhost_helper.os_detector import get_os_info, detect_os_family
-from vhost_helper.models import OSInfo
+
 
 def test_get_os_info(mocker):
     # Mock subprocess.run output
     mock_output = "ID=ubuntu\nVERSION=22.04\n"
-    mocker.patch("subprocess.run", return_value=mocker.Mock(stdout=mock_output, check=True))
-    
+    mocker.patch(
+        "subprocess.run", return_value=mocker.Mock(stdout=mock_output, check=True)
+    )
+
     os_info = get_os_info()
-    
+
     assert os_info.id == "ubuntu"
     assert os_info.version == "22.04"
     assert os_info.family == "debian"
 
+
 def test_get_os_info_rhel(mocker):
     mock_output = "ID=fedora\nVERSION=39\n"
-    mocker.patch("subprocess.run", return_value=mocker.Mock(stdout=mock_output, check=True))
-    
+    mocker.patch(
+        "subprocess.run", return_value=mocker.Mock(stdout=mock_output, check=True)
+    )
+
     os_info = get_os_info()
-    
+
     assert os_info.id == "fedora"
     assert os_info.version == "39"
     assert os_info.family == "rhel"
 
+
 def test_get_os_info_unknown(mocker):
     mock_output = "ID=solaris\nVERSION=11\n"
-    mocker.patch("subprocess.run", return_value=mocker.Mock(stdout=mock_output, check=True))
-    
+    mocker.patch(
+        "subprocess.run", return_value=mocker.Mock(stdout=mock_output, check=True)
+    )
+
     os_info = get_os_info()
-    
+
     assert os_info.id == "solaris"
     assert os_info.version == "11"
     assert os_info.family == "unknown"
@@ -40,15 +46,15 @@ def test_get_os_info_unknown(mocker):
 
 # --- Tests for detect_os_family() ---
 
-_DEBIAN_OS_RELEASE = "ID=ubuntu\nVERSION_ID=\"22.04\"\nID_LIKE=debian\n"
-_UBUNTU_OS_RELEASE = "ID=ubuntu\nVERSION_ID=\"20.04\"\n"
-_DEBIAN_PURE_OS_RELEASE = "ID=debian\nVERSION_ID=\"12\"\n"
-_RHEL_OS_RELEASE = "ID=rhel\nVERSION_ID=\"9.0\"\n"
-_CENTOS_OS_RELEASE = "ID=centos\nVERSION_ID=\"8\"\nID_LIKE=\"rhel fedora\"\n"
-_FEDORA_OS_RELEASE = "ID=fedora\nVERSION_ID=\"39\"\n"
-_ALMA_OS_RELEASE = "ID=almalinux\nVERSION_ID=\"9.1\"\nID_LIKE=\"rhel centos fedora\"\n"
-_ROCKY_OS_RELEASE = "ID=rocky\nVERSION_ID=\"9.2\"\nID_LIKE=\"rhel centos fedora\"\n"
-_UNKNOWN_OS_RELEASE = "ID=gentoo\nVERSION_ID=\"2.14\"\n"
+_DEBIAN_OS_RELEASE = 'ID=ubuntu\nVERSION_ID="22.04"\nID_LIKE=debian\n'
+_UBUNTU_OS_RELEASE = 'ID=ubuntu\nVERSION_ID="20.04"\n'
+_DEBIAN_PURE_OS_RELEASE = 'ID=debian\nVERSION_ID="12"\n'
+_RHEL_OS_RELEASE = 'ID=rhel\nVERSION_ID="9.0"\n'
+_CENTOS_OS_RELEASE = 'ID=centos\nVERSION_ID="8"\nID_LIKE="rhel fedora"\n'
+_FEDORA_OS_RELEASE = 'ID=fedora\nVERSION_ID="39"\n'
+_ALMA_OS_RELEASE = 'ID=almalinux\nVERSION_ID="9.1"\nID_LIKE="rhel centos fedora"\n'
+_ROCKY_OS_RELEASE = 'ID=rocky\nVERSION_ID="9.2"\nID_LIKE="rhel centos fedora"\n'
+_UNKNOWN_OS_RELEASE = 'ID=gentoo\nVERSION_ID="2.14"\n'
 
 
 def _make_mock_open(content: str):
@@ -149,13 +155,20 @@ def test_detect_os_family_quoted_values(tmp_path):
 
 # --- Integration tests: detect_os_family() drives correct Nginx paths ---
 
+
 def test_nginx_paths_debian_family(tmp_path, mocker):
     """When detect_os_family returns debian_family, NginxProvider.os_family is debian_family."""
     import vhost_helper.providers.nginx as nginx_mod
 
     mocker.patch("vhost_helper.providers.nginx.detected_os_family", "debian_family")
-    mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", Path("/etc/nginx/sites-available"))
-    mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", Path("/etc/nginx/sites-enabled"))
+    mocker.patch(
+        "vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE",
+        Path("/etc/nginx/sites-available"),
+    )
+    mocker.patch(
+        "vhost_helper.providers.nginx.NGINX_SITES_ENABLED",
+        Path("/etc/nginx/sites-enabled"),
+    )
     mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", None)
 
     provider = nginx_mod.NginxProvider.__new__(nginx_mod.NginxProvider)
@@ -172,9 +185,16 @@ def test_nginx_paths_rhel_family(tmp_path, mocker):
     import vhost_helper.providers.nginx as nginx_mod
 
     mocker.patch("vhost_helper.providers.nginx.detected_os_family", "rhel_family")
-    mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", Path("/etc/nginx/conf.d"))
-    mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", Path("/etc/nginx/conf.d"))
-    mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", Path("/etc/nginx/conf.disabled"))
+    mocker.patch(
+        "vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", Path("/etc/nginx/conf.d")
+    )
+    mocker.patch(
+        "vhost_helper.providers.nginx.NGINX_SITES_ENABLED", Path("/etc/nginx/conf.d")
+    )
+    mocker.patch(
+        "vhost_helper.providers.nginx.NGINX_SITES_DISABLED",
+        Path("/etc/nginx/conf.disabled"),
+    )
 
     provider = nginx_mod.NginxProvider.__new__(nginx_mod.NginxProvider)
     provider.os_family = nginx_mod.detected_os_family
@@ -190,8 +210,14 @@ def test_nginx_paths_unknown_falls_back_to_debian(mocker):
     import vhost_helper.providers.nginx as nginx_mod
 
     mocker.patch("vhost_helper.providers.nginx.detected_os_family", "unknown")
-    mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", Path("/etc/nginx/sites-available"))
-    mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", Path("/etc/nginx/sites-enabled"))
+    mocker.patch(
+        "vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE",
+        Path("/etc/nginx/sites-available"),
+    )
+    mocker.patch(
+        "vhost_helper.providers.nginx.NGINX_SITES_ENABLED",
+        Path("/etc/nginx/sites-enabled"),
+    )
     mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", None)
 
     provider = nginx_mod.NginxProvider.__new__(nginx_mod.NginxProvider)

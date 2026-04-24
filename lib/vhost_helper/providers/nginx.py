@@ -1,5 +1,4 @@
 import subprocess
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -17,8 +16,6 @@ from ..utils import (
     get_sudo_prefix,
     run_elevated_command,
     is_service_running,
-    reload_service,
-    apply_selinux_context,
 )
 from ..os_detector import is_selinux_enforcing
 
@@ -41,13 +38,16 @@ class NginxProvider:
         # Set up search paths for templates, user's first
         user_template_path = USER_TEMPLATES_DIR / "nginx"
         app_template_path = APP_TEMPLATES_DIR / "nginx"
-        
+
         # ChoiceLoader tries loaders in order until one finds a template
         self.env = Environment(
-            loader=ChoiceLoader([
-                FileSystemLoader(str(user_template_path)),
-                FileSystemLoader(str(app_template_path))
-            ])
+            loader=ChoiceLoader(
+                [
+                    FileSystemLoader(str(user_template_path)),
+                    FileSystemLoader(str(app_template_path)),
+                ]
+            ),
+            autoescape=True,
         )
         self.os_family = detected_os_family
 
@@ -85,7 +85,9 @@ class NginxProvider:
             os_family=self.os_family,
         )
 
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".conf") as temp_file:
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False, suffix=".conf"
+        ) as temp_file:
             temp_file.write(rendered_config)
             temp_file_path = Path(temp_file.name)
 
@@ -97,10 +99,15 @@ class NginxProvider:
 
             cmd_chmod = get_sudo_prefix() + ["chmod", "644", str(config_path)]
             run_elevated_command(cmd_chmod)
-            
+
             if is_selinux_enforcing():
                 try:
-                    cmd_chcon = get_sudo_prefix() + ["chcon", "-t", "httpd_config_t", str(config_path)]
+                    cmd_chcon = get_sudo_prefix() + [
+                        "chcon",
+                        "-t",
+                        "httpd_config_t",
+                        str(config_path),
+                    ]
                     run_elevated_command(cmd_chcon)
                 except RuntimeError:
                     self.remove_vhost(config.domain, service_running=False)
@@ -113,7 +120,12 @@ class NginxProvider:
             if self.os_family == "debian_family":
                 enabled_link = NGINX_SITES_ENABLED / (config.domain + ".conf")
                 if not enabled_link.exists():
-                    cmd_ln = get_sudo_prefix() + ["ln", "-s", str(config_path), str(enabled_link)]
+                    cmd_ln = get_sudo_prefix() + [
+                        "ln",
+                        "-s",
+                        str(config_path),
+                        str(enabled_link),
+                    ]
                     run_elevated_command(cmd_ln)
 
             if service_running:
@@ -122,14 +134,20 @@ class NginxProvider:
                         self.reload()
                     except Exception as reload_error:
                         self.remove_vhost(config.domain)
-                        raise RuntimeError(f"Nginx reload failed, rollback performed: {reload_error}")
+                        raise RuntimeError(
+                            f"Nginx reload failed, rollback performed: {reload_error}"
+                        )
                 else:
                     self.remove_vhost(config.domain)
-                    raise RuntimeError("Nginx configuration validation failed. Rollback complete.")
+                    raise RuntimeError(
+                        "Nginx configuration validation failed. Rollback complete."
+                    )
         except Exception as e:
             if temp_file_path.exists():
                 temp_file_path.unlink()
-            if isinstance(e, RuntimeError) and ("rollback" in str(e).lower() or "validation failed" in str(e).lower()):
+            if isinstance(e, RuntimeError) and (
+                "rollback" in str(e).lower() or "validation failed" in str(e).lower()
+            ):
                 raise
             raise RuntimeError(f"Failed to create Nginx vhost: {e}")
 
@@ -143,9 +161,11 @@ class NginxProvider:
         ]
         if self.os_family == "rhel_family" and NGINX_SITES_DISABLED:
             config_paths_to_check.append(NGINX_SITES_DISABLED / (domain + ".conf"))
-        
+
         # Use a set to avoid trying to remove the same file twice (e.g. RHEL)
-        unique_paths = {p for p in config_paths_to_check if p.exists() or p.is_symlink()}
+        unique_paths = {
+            p for p in config_paths_to_check if p.exists() or p.is_symlink()
+        }
 
         try:
             for path in unique_paths:
@@ -168,29 +188,39 @@ class NginxProvider:
                 raise RuntimeError("NGINX_SITES_DISABLED path is not configured.")
             disabled_config_path = NGINX_SITES_DISABLED / (domain + ".conf")
             enabled_config_path = NGINX_SITES_ENABLED / (domain + ".conf")
-            
-            if not disabled_config_path.exists():
-                raise FileNotFoundError(f"Configuration for {domain} not found in {NGINX_SITES_DISABLED}.")
-            if enabled_config_path.exists():
-                return # Already enabled
 
-            cmd_mv = get_sudo_prefix() + ["mv", str(disabled_config_path), str(enabled_config_path)]
+            if not disabled_config_path.exists():
+                raise FileNotFoundError(
+                    f"Configuration for {domain} not found in {NGINX_SITES_DISABLED}."
+                )
+            if enabled_config_path.exists():
+                return  # Already enabled
+
+            cmd_mv = get_sudo_prefix() + [
+                "mv",
+                str(disabled_config_path),
+                str(enabled_config_path),
+            ]
             run_elevated_command(cmd_mv)
 
-        else: # Debian family
+        else:  # Debian family
             config_path = NGINX_SITES_AVAILABLE / (domain + ".conf")
             enabled_link = NGINX_SITES_ENABLED / (domain + ".conf")
             if not config_path.exists():
                 raise FileNotFoundError(f"Configuration for {domain} not found.")
             if enabled_link.exists():
                 return  # Already enabled
-            
-            cmd_ln = get_sudo_prefix() + ["ln", "-s", str(config_path), str(enabled_link)]
+
+            cmd_ln = get_sudo_prefix() + [
+                "ln",
+                "-s",
+                str(config_path),
+                str(enabled_link),
+            ]
             run_elevated_command(cmd_ln)
 
         if service_running:
             self.reload()
-
 
     def disable_vhost(self, domain: str, service_running: bool = True):
         """
@@ -201,28 +231,36 @@ class NginxProvider:
         if self.os_family == "rhel_family":
             if not NGINX_SITES_DISABLED:
                 raise RuntimeError("NGINX_SITES_DISABLED path is not configured.")
-            
+
             # Ensure the conf.disabled directory exists
             if not NGINX_SITES_DISABLED.exists():
-                cmd_mkdir = get_sudo_prefix() + ["mkdir", "-p", str(NGINX_SITES_DISABLED)]
+                cmd_mkdir = get_sudo_prefix() + [
+                    "mkdir",
+                    "-p",
+                    str(NGINX_SITES_DISABLED),
+                ]
                 run_elevated_command(cmd_mkdir)
 
             enabled_config_path = NGINX_SITES_ENABLED / (domain + ".conf")
             disabled_config_path = NGINX_SITES_DISABLED / (domain + ".conf")
             if not enabled_config_path.exists():
-                return # Already disabled
-            
-            cmd_mv = get_sudo_prefix() + ["mv", str(enabled_config_path), str(disabled_config_path)]
+                return  # Already disabled
+
+            cmd_mv = get_sudo_prefix() + [
+                "mv",
+                str(enabled_config_path),
+                str(disabled_config_path),
+            ]
             run_elevated_command(cmd_mv)
 
-        else: # Debian family
+        else:  # Debian family
             enabled_link = NGINX_SITES_ENABLED / (domain + ".conf")
             if not enabled_link.exists() and not enabled_link.is_symlink():
                 return  # Already disabled
 
             cmd_rm_link = get_sudo_prefix() + ["rm", str(enabled_link)]
             run_elevated_command(cmd_rm_link)
-        
+
         if service_running:
             self.reload()
 
@@ -230,7 +268,9 @@ class NginxProvider:
         """Runs nginx -t to check syntax."""
         try:
             cmd = get_sudo_prefix() + ["nginx", "-t"]
-            run_elevated_command(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            run_elevated_command(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+            )
             return True
         except (RuntimeError, FileNotFoundError, OSError):
             return False

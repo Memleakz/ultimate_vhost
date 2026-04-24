@@ -13,15 +13,20 @@ Acceptance criteria verified here:
 9. Redirect for non-www domain targets www counterpart (and vice versa).
 10. Redirect uses HTTP status 301, never 302.
 """
+
 import tempfile
 from pathlib import Path
 
 import pytest
-from jinja2 import Environment, FileSystemLoader
 from typer.testing import CliRunner
 
 from vhost_helper.main import app
-from vhost_helper.models import VHostConfig, ServerType, RuntimeMode, PHP_SOCKET_PATHS, DEFAULT_PHP_SOCKET
+from vhost_helper.models import (
+    VHostConfig,
+    RuntimeMode,
+    PHP_SOCKET_PATHS,
+    DEFAULT_PHP_SOCKET,
+)
 from vhost_helper.providers.nginx import NginxProvider
 
 runner = CliRunner()
@@ -32,6 +37,7 @@ TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _render(
     domain: str = "example.test",
@@ -63,6 +69,7 @@ def _render(
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def tmp_nginx_dirs(mocker):
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -89,6 +96,7 @@ def doc_root(tmp_path):
 # 3.1 Static HTML mode
 # ---------------------------------------------------------------------------
 
+
 def test_static_mode_uses_try_files_index_html():
     config = _render(runtime="static")
     assert "try_files $uri $uri/ /index.html" in config
@@ -101,7 +109,9 @@ def test_static_mode_has_no_fastcgi_pass():
         stripped = line.strip()
         if stripped.startswith("#"):
             continue
-        assert "fastcgi_pass" not in stripped, f"Unexpected active fastcgi_pass in static mode: {line!r}"
+        assert (
+            "fastcgi_pass" not in stripped
+        ), f"Unexpected active fastcgi_pass in static mode: {line!r}"
 
 
 def test_static_mode_has_no_proxy_pass():
@@ -110,7 +120,9 @@ def test_static_mode_has_no_proxy_pass():
         stripped = line.strip()
         if stripped.startswith("#"):
             continue
-        assert "proxy_pass" not in stripped, f"Unexpected active proxy_pass in static mode: {line!r}"
+        assert (
+            "proxy_pass" not in stripped
+        ), f"Unexpected active proxy_pass in static mode: {line!r}"
 
 
 def test_static_mode_index_does_not_include_php():
@@ -128,31 +140,46 @@ def test_static_mode_index_does_not_include_php():
 # 3.5 Commented-out runtime blocks in static mode
 # ---------------------------------------------------------------------------
 
+
 def test_static_mode_has_commented_fastcgi_block():
     config = _render(runtime="static")
-    assert "# location ~ \\.php$" in config or "# location ~ \\.php$" in config.replace("\\", "")
+    assert "# location ~ \\.php$" in config or "# location ~ \\.php$" in config.replace(
+        "\\", ""
+    )
     # Normalise — check for the key directive inside a comment
-    assert any("fastcgi_pass" in line and line.strip().startswith("#") for line in config.splitlines())
+    assert any(
+        "fastcgi_pass" in line and line.strip().startswith("#")
+        for line in config.splitlines()
+    )
 
 
 def test_static_mode_has_commented_proxy_pass_block():
     config = _render(runtime="static")
-    assert any("proxy_pass" in line and line.strip().startswith("#") for line in config.splitlines())
+    assert any(
+        "proxy_pass" in line and line.strip().startswith("#")
+        for line in config.splitlines()
+    )
 
 
 def test_static_mode_has_commented_proxy_set_header():
     config = _render(runtime="static")
-    assert any("proxy_set_header" in line and line.strip().startswith("#") for line in config.splitlines())
+    assert any(
+        "proxy_set_header" in line and line.strip().startswith("#")
+        for line in config.splitlines()
+    )
 
 
 # ---------------------------------------------------------------------------
 # 3.2 PHP runtime mode
 # ---------------------------------------------------------------------------
 
+
 def test_php_mode_has_fastcgi_pass():
     config = _render(runtime="php", php_socket="/run/php/php-fpm.sock")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("fastcgi_pass" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("fastcgi_pass" in line for line in active_lines)
 
 
 def test_php_mode_fastcgi_pass_uses_correct_socket():
@@ -169,72 +196,94 @@ def test_php_mode_fastcgi_pass_uses_rhel_socket():
 
 def test_php_mode_includes_fastcgi_params():
     config = _render(runtime="php")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("include fastcgi_params" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("include fastcgi_params" in line for line in active_lines)
 
 
 def test_php_mode_includes_script_filename_param():
     config = _render(runtime="php")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("SCRIPT_FILENAME" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("SCRIPT_FILENAME" in line for line in active_lines)
 
 
 def test_php_mode_has_no_proxy_pass():
     config = _render(runtime="php")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert not any("proxy_pass" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not any("proxy_pass" in line for line in active_lines)
 
 
 def test_php_mode_index_includes_php():
     config = _render(runtime="php")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    index_lines = [l for l in active_lines if l.strip().startswith("index ")]
-    assert any("index.php" in l for l in index_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    index_lines = [line for line in active_lines if line.strip().startswith("index ")]
+    assert any("index.php" in line for line in index_lines)
 
 
 # ---------------------------------------------------------------------------
 # 3.3 Python runtime mode
 # ---------------------------------------------------------------------------
 
+
 def test_python_mode_has_proxy_pass_default_port():
     config = _render(runtime="python", python_port=8000)
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("proxy_pass http://127.0.0.1:8000" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("proxy_pass http://127.0.0.1:8000" in line for line in active_lines)
 
 
 def test_python_mode_has_proxy_pass_custom_port():
     config = _render(runtime="python", python_port=9000)
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("proxy_pass http://127.0.0.1:9000" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("proxy_pass http://127.0.0.1:9000" in line for line in active_lines)
 
 
 def test_python_mode_has_host_header():
     config = _render(runtime="python")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("proxy_set_header Host" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("proxy_set_header Host" in line for line in active_lines)
 
 
 def test_python_mode_has_x_real_ip_header():
     config = _render(runtime="python")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("proxy_set_header X-Real-IP" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("proxy_set_header X-Real-IP" in line for line in active_lines)
 
 
 def test_python_mode_has_x_forwarded_for_header():
     config = _render(runtime="python")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert any("proxy_set_header X-Forwarded-For" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert any("proxy_set_header X-Forwarded-For" in line for line in active_lines)
 
 
 def test_python_mode_has_no_fastcgi_pass():
     config = _render(runtime="python")
-    active_lines = [l for l in config.splitlines() if not l.strip().startswith("#")]
-    assert not any("fastcgi_pass" in l for l in active_lines)
+    active_lines = [
+        line for line in config.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not any("fastcgi_pass" in line for line in active_lines)
 
 
 # ---------------------------------------------------------------------------
 # 3.4 Canonical WWW redirect
 # ---------------------------------------------------------------------------
+
 
 def test_non_www_domain_generates_www_redirect_block():
     config = _render(domain="example.com")
@@ -272,15 +321,20 @@ def test_config_has_two_server_blocks():
 # 3.3 CLI: --php and --python mutual exclusivity
 # ---------------------------------------------------------------------------
 
+
 def test_cli_mutual_exclusivity_exits_code_1(doc_root, mocker):
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
-    result = runner.invoke(app, ["create", "example.test", str(doc_root), "--php", "--python"])
+    result = runner.invoke(
+        app, ["create", "example.test", str(doc_root), "--php", "--python"]
+    )
     assert result.exit_code == 1
 
 
 def test_cli_mutual_exclusivity_shows_error_message(doc_root, mocker):
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
-    result = runner.invoke(app, ["create", "example.test", str(doc_root), "--php", "--python"])
+    result = runner.invoke(
+        app, ["create", "example.test", str(doc_root), "--php", "--python"]
+    )
     assert "mutually exclusive" in result.output
 
 
@@ -289,20 +343,27 @@ def test_cli_mutual_exclusivity_writes_no_files(tmp_nginx_dirs, doc_root, mocker
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     mocker.patch("vhost_helper.main.add_entry")
     runner.invoke(app, ["create", "example.test", str(doc_root), "--php", "--python"])
-    assert not list(available.iterdir()), "No config file should be written on mutual exclusion error"
+    assert not list(
+        available.iterdir()
+    ), "No config file should be written on mutual exclusion error"
 
 
 # ---------------------------------------------------------------------------
 # CLI: --php flag integration
 # ---------------------------------------------------------------------------
 
+
 def test_cli_php_flag_passes_runtime_to_provider(tmp_nginx_dirs, doc_root, mocker):
     available, enabled, _ = tmp_nginx_dirs
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
     mocker.patch("vhost_helper.main.add_entry")
-    mocker.patch("vhost_helper.main._resolve_php_socket", return_value="/run/php/php-fpm.sock")
-    mock_create = mocker.patch("vhost_helper.providers.nginx.NginxProvider.create_vhost")
+    mocker.patch(
+        "vhost_helper.main._resolve_php_socket", return_value="/run/php/php-fpm.sock"
+    )
+    mock_create = mocker.patch(
+        "vhost_helper.providers.nginx.NginxProvider.create_vhost"
+    )
 
     runner.invoke(app, ["create", "php.test", str(doc_root), "--php"])
 
@@ -316,7 +377,9 @@ def test_cli_python_flag_passes_runtime_to_provider(tmp_nginx_dirs, doc_root, mo
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
     mocker.patch("vhost_helper.main.add_entry")
-    mock_create = mocker.patch("vhost_helper.providers.nginx.NginxProvider.create_vhost")
+    mock_create = mocker.patch(
+        "vhost_helper.providers.nginx.NginxProvider.create_vhost"
+    )
 
     runner.invoke(app, ["create", "python.test", str(doc_root), "--python"])
 
@@ -330,9 +393,14 @@ def test_cli_python_port_override(tmp_nginx_dirs, doc_root, mocker):
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
     mocker.patch("vhost_helper.main.add_entry")
-    mock_create = mocker.patch("vhost_helper.providers.nginx.NginxProvider.create_vhost")
+    mock_create = mocker.patch(
+        "vhost_helper.providers.nginx.NginxProvider.create_vhost"
+    )
 
-    runner.invoke(app, ["create", "python.test", str(doc_root), "--python", "--python-port", "9000"])
+    runner.invoke(
+        app,
+        ["create", "python.test", str(doc_root), "--python", "--python-port", "9000"],
+    )
 
     assert mock_create.called
     config_arg: VHostConfig = mock_create.call_args[0][0]
@@ -344,7 +412,9 @@ def test_cli_no_flags_defaults_to_static_runtime(tmp_nginx_dirs, doc_root, mocke
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
     mocker.patch("vhost_helper.main.add_entry")
-    mock_create = mocker.patch("vhost_helper.providers.nginx.NginxProvider.create_vhost")
+    mock_create = mocker.patch(
+        "vhost_helper.providers.nginx.NginxProvider.create_vhost"
+    )
 
     runner.invoke(app, ["create", "static.test", str(doc_root)])
 
@@ -356,6 +426,7 @@ def test_cli_no_flags_defaults_to_static_runtime(tmp_nginx_dirs, doc_root, mocke
 # ---------------------------------------------------------------------------
 # VHostConfig model: new fields
 # ---------------------------------------------------------------------------
+
 
 def test_vhost_config_defaults_to_static_runtime(doc_root):
     config = VHostConfig(domain="example.test", document_root=doc_root)
@@ -373,12 +444,16 @@ def test_vhost_config_default_php_socket(doc_root):
 
 
 def test_vhost_config_accepts_php_runtime(doc_root):
-    config = VHostConfig(domain="example.test", document_root=doc_root, runtime=RuntimeMode.PHP)
+    config = VHostConfig(
+        domain="example.test", document_root=doc_root, runtime=RuntimeMode.PHP
+    )
     assert config.runtime == RuntimeMode.PHP
 
 
 def test_vhost_config_accepts_python_runtime(doc_root):
-    config = VHostConfig(domain="example.test", document_root=doc_root, runtime=RuntimeMode.PYTHON)
+    config = VHostConfig(
+        domain="example.test", document_root=doc_root, runtime=RuntimeMode.PYTHON
+    )
     assert config.runtime == RuntimeMode.PYTHON
 
 
@@ -386,8 +461,10 @@ def test_vhost_config_accepts_python_runtime(doc_root):
 # NginxProvider: template variables wired correctly
 # ---------------------------------------------------------------------------
 
+
 def test_provider_renders_php_socket_from_config(tmp_nginx_dirs, mocker):
     import subprocess
+
     available, enabled, tmp_path = tmp_nginx_dirs
     mocker.patch(
         "subprocess.run",
@@ -411,6 +488,7 @@ def test_provider_renders_php_socket_from_config(tmp_nginx_dirs, mocker):
 
 def test_provider_renders_python_port_from_config(tmp_nginx_dirs, mocker):
     import subprocess
+
     available, enabled, tmp_path = tmp_nginx_dirs
     mocker.patch(
         "subprocess.run",
