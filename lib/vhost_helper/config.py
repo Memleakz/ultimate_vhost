@@ -45,6 +45,8 @@ detected_os_family: str = detect_os_family()
 
 HOSTS_FILE = _get_path("VHOST_HOSTS_FILE", "/etc/hosts")
 
+SSL_DIR = _get_path("VHOST_SSL_DIR", "/etc/vhost-helper/ssl")
+
 # Global user-level configuration directory
 USER_CONFIG_DIR = _get_path(
     "VHOST_USER_CONFIG_DIR", str(Path.home() / ".config" / "vhost_helper")

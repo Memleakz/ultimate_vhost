@@ -10,12 +10,77 @@ variables:
   - name: php_socket
     description: "PHP-FPM Unix socket path."
     default: "/run/php/php-fpm.sock"
+  - name: use_ssl
+    description: "When true, renders a 443 SSL block and HTTP→HTTPS redirect."
+    default: false
+  - name: cert_path
+    description: "Absolute path to the SSL certificate (.pem). Required when use_ssl=true."
+  - name: key_path
+    description: "Absolute path to the SSL private key (-key.pem). Required when use_ssl=true."
 --- #}
 {% if domain.startswith('www.') %}
 {% set redirect_domain = domain[4:] %}
 {% else %}
 {% set redirect_domain = 'www.' ~ domain %}
 {% endif %}
+{% if use_ssl %}
+# ============================================================
+# HTTP → HTTPS redirect — {{ domain }}
+# ============================================================
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ domain }} {{ redirect_domain }};
+    return 301 https://{{ domain }}$request_uri;
+}
+
+# ============================================================
+# HTTPS PHP-FPM site — {{ domain }}
+# ============================================================
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name {{ domain }};
+    ssl_certificate {{ cert_path }};
+    ssl_certificate_key {{ key_path }};
+    root "{{ document_root }}";
+
+    index index.php index.html index.htm;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:{{ php_socket }};
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    access_log off;
+    error_log  "/var/log/nginx/{{ domain }}-error.log" error;
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+
+# ============================================================
+# HTTPS canonical redirect: {{ redirect_domain }} → {{ domain }} (301)
+# ============================================================
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name {{ redirect_domain }};
+    ssl_certificate {{ cert_path }};
+    ssl_certificate_key {{ key_path }};
+    return 301 https://{{ domain }}$request_uri;
+}
+{% else %}
 # ============================================================
 # PHP-FPM site — {{ domain }}
 # ============================================================
@@ -56,3 +121,4 @@ server {
     server_name {{ redirect_domain }};
     return 301 $scheme://{{ domain }}{% if port != 80 and port != 443 %}:{{ port }}{% endif %}$request_uri;
 }
+{% endif %}

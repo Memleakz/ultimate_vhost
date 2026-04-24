@@ -28,6 +28,14 @@ from .providers.nginx import NginxProvider, is_nginx_installed, is_nginx_running
 from .providers.apache import ApacheProvider, is_apache_installed, is_apache_running
 from .os_detector import get_os_info
 from .utils import set_active_live, preflight_sudo_check
+from .ssl import check_mkcert_binary, generate_certificate, get_ssl_dir
+from .php_fpm import (
+    PhpFpmNotFoundError,
+    detect_default_version,
+    validate_version_present,
+    start_service,
+    resolve_socket_path,
+)
 from .template_inspector import (
     list_templates,
     resolve_template_path,
@@ -39,6 +47,10 @@ app = typer.Typer(help="VHost Helper: Unified virtual host management.")
 templates_app = typer.Typer(help="Inspect and list available Jinja2 templates.")
 app.add_typer(templates_app, name="templates")
 console = Console()
+
+# Sentinel injected into argv when `--php` is used without a version argument.
+# The real CLI preprocesses sys.argv so `--php` alone becomes `--php __auto__`.
+_PHP_AUTO = "__auto__"
 
 # Initialize user configuration directories on startup
 initialize_user_config()
@@ -151,7 +163,14 @@ def create(
         None, "--provider", "-p", help="Web server provider (nginx or apache)"
     ),
     port: int = typer.Option(80, help="Port number"),
-    php: bool = typer.Option(False, "--php", help="Enable PHP (php-fpm) support"),
+    php: Optional[str] = typer.Option(
+        None,
+        "--php",
+        help=(
+            "Enable PHP-FPM support. Optionally pass a version: --php 8.2. "
+            "Omit the version to auto-detect the system default."
+        ),
+    ),
     python: bool = typer.Option(
         False, "--python", help="Enable Python (gunicorn) support"
     ),
@@ -180,6 +199,16 @@ def create(
         "-t",
         help="Name of the template to use (e.g., 'wordpress')",
     ),
+    mkcert: bool = typer.Option(
+        False,
+        "--mkcert/--no-mkcert",
+        help="Generate a locally-trusted SSL certificate using mkcert",
+    ),
+    ssl_dir: Optional[str] = typer.Option(
+        None,
+        "--ssl-dir",
+        help="Directory to store SSL certificates (overrides VHOST_SSL_DIR env var)",
+    ),
 ):
     """Provision a new virtual host."""
     try:
@@ -189,7 +218,8 @@ def create(
         raise typer.Exit(code=1)
 
     # Mutual exclusivity guard — must happen before any system writes.
-    active_flags = sum([php, python, nodejs, runtime_opt is not None])
+    php_requested = php is not None
+    active_flags = sum([php_requested, python, nodejs, runtime_opt is not None])
     if active_flags > 1:
         console.print(
             "[red]✖[/red] Error: --php, --python, --nodejs, and --runtime are mutually exclusive."
@@ -233,27 +263,71 @@ def create(
     # Warm the sudo credentials cache
     preflight_sudo_check()
 
+    # Check mkcert binary availability early — before any system writes.
+    if mkcert:
+        try:
+            check_mkcert_binary()
+        except RuntimeError as e:
+            console.print(f"  [red]✖[/red] {e}")
+            raise typer.Exit(code=1)
+
     # Determine runtime mode and distro-specific PHP socket path.
-    if php or runtime_opt == RuntimeMode.PHP:
+    # php_fpm_version holds the resolved version string; used for service orchestration.
+    php_fpm_version: Optional[str] = None
+    if php is not None or runtime_opt == RuntimeMode.PHP:
         runtime = RuntimeMode.PHP
-        php_socket = _resolve_php_socket()
+        # Determine how to resolve the socket:
+        # - explicit version via --php 8.2 → strict validate
+        # - --php (sentinel or no version) → auto-detect
+        # - --runtime php (php is None) → legacy fallback
+        if php is not None and php != _PHP_AUTO:
+            # Explicit version requested: --php 8.2
+            php_socket = _resolve_php_socket(php)
+            php_fpm_version = php
+        elif php == _PHP_AUTO:
+            # --php with no version → auto-detect
+            php_socket = _resolve_php_socket("")
+            php_fpm_version = None
+        else:
+            # Legacy --runtime php path
+            php_socket = _resolve_php_socket(None)
+            php_fpm_version = None
+        if php_socket is None:
+            # Error was already printed by _resolve_php_socket
+            raise typer.Exit(code=1)
     elif python or runtime_opt == RuntimeMode.PYTHON:
         runtime = RuntimeMode.PYTHON
-        php_socket = DEFAULT_PHP_SOCKET  # not used, set to default for model validity
+        php_socket = None
     elif nodejs or runtime_opt == RuntimeMode.NODEJS:
         runtime = RuntimeMode.NODEJS
-        php_socket = DEFAULT_PHP_SOCKET  # not used, set to default for model validity
+        php_socket = None
     elif runtime_opt == RuntimeMode.STATIC:
         runtime = RuntimeMode.STATIC
-        php_socket = DEFAULT_PHP_SOCKET
+        php_socket = None
     else:
         runtime = RuntimeMode.STATIC
-        php_socket = DEFAULT_PHP_SOCKET
+        php_socket = None
 
     hostfile_updated = False
 
     try:
-        # 1.5. Validation with Pydantic
+        # 1.5a. Generate SSL certificate if requested (before Pydantic validation
+        #        so the resolved paths can be passed into the model).
+        ssl_cert_path = None
+        ssl_key_path = None
+        if mkcert:
+            resolved_ssl_dir = get_ssl_dir(ssl_dir)
+            with _tracked_status(
+                "[bold green]Generating SSL certificate...", spinner="dots"
+            ):
+                ssl_cert_path, ssl_key_path = generate_certificate(
+                    domain, resolved_ssl_dir
+                )
+            console.print(
+                f"  [green]✔[/green] SSL certificate generated ({ssl_cert_path})"
+            )
+
+        # 1.5b. Validation with Pydantic
         config = VHostConfig(
             domain=domain,
             document_root=document_root.absolute(),
@@ -265,6 +339,9 @@ def create(
             node_socket=node_socket,
             php_socket=php_socket,
             template=template,
+            ssl_enabled=mkcert,
+            cert_path=ssl_cert_path,
+            key_path=ssl_key_path,
         )
 
         # 2. Update hostfile
@@ -290,10 +367,14 @@ def create(
         ):
             console.print("  [green]✔[/green] Symbolic link created")
 
+        # 4. PHP-FPM service orchestration (non-blocking)
+        if php_socket is not None:
+            _orchestrate_php_fpm_service(php_fpm_version, console)
+
         if service_running:
             console.print(f"  [green]✔[/green] {server_name} configuration valid")
             console.print(f"  [green]✔[/green] {server_name} reloaded successfully")
-            scheme = "http"
+            scheme = "https" if mkcert else "http"
             console.print(
                 f"\n✨ [bold green]Success![/bold green] Your site is live at: [underline green]{scheme}://{domain}[/underline green]"
             )
@@ -329,13 +410,83 @@ def create(
         raise typer.Exit(code=1)
 
 
-def _resolve_php_socket() -> str:
-    """Return the distro-appropriate php-fpm socket path, falling back to the parent default."""
+def _resolve_php_socket(php_version: Optional[str] = None) -> Optional[str]:
+    """Resolve and validate the PHP-FPM socket path.
+
+    Three calling modes are supported:
+    - ``php_version=None``: Legacy / ``--runtime php`` path — look up the
+      OS-specific socket from ``PHP_SOCKET_PATHS`` (backward-compatible).
+    - ``php_version=""``: New auto-detect path (``--php`` flag with no version)
+      — call ``detect_default_version`` and construct the socket path.
+    - ``php_version="8.2"`` etc: Explicit version (``--php 8.2``) — call
+      ``validate_version_present`` with strict error on failure.
+
+    Returns:
+        Resolved absolute socket path string, or ``None`` if resolution failed
+        (error already printed to the console by this function).
+    """
     try:
         os_info = get_os_info()
-        return PHP_SOCKET_PATHS.get(os_info.family, DEFAULT_PHP_SOCKET)
+        os_family = os_info.family
     except Exception:
-        return DEFAULT_PHP_SOCKET
+        os_family = "debian_family"
+
+    if php_version is None:
+        # Legacy path: use the OS-family→socket-path table, no validation.
+        return PHP_SOCKET_PATHS.get(os_family, DEFAULT_PHP_SOCKET)
+
+    try:
+        if php_version == "":
+            # Auto-detect: find the highest installed version.
+            version = detect_default_version(os_family)
+            return resolve_socket_path(version, os_family)
+        else:
+            # Explicit version requested — validate presence strictly.
+            return validate_version_present(php_version, os_family)
+    except PhpFpmNotFoundError as exc:
+        console.print(
+            Panel(
+                str(exc),
+                title="PHP-FPM Not Found",
+                style="red",
+            )
+        )
+        return None
+
+
+def _orchestrate_php_fpm_service(
+    php_version: Optional[str], _console: Console
+) -> None:
+    """Attempt to start the PHP-FPM service, printing a warning on failure.
+
+    This function is intentionally non-blocking: a failure produces a Rich
+    warning panel but does not raise an exception.
+
+    Args:
+        php_version: Resolved version string or ``None`` for auto-detected version.
+        _console: Rich console instance for output.
+    """
+    try:
+        os_info = get_os_info()
+        os_family = os_info.family
+    except Exception:
+        os_family = "debian_family"
+
+    if php_version is None or php_version == "":
+        try:
+            php_version = detect_default_version(os_family)
+        except PhpFpmNotFoundError:
+            return
+
+    warning = start_service(php_version, os_family)
+    if warning:
+        _console.print(
+            Panel(
+                warning,
+                title="PHP-FPM Service Warning",
+                style="yellow",
+            )
+        )
 
 
 @app.command()
@@ -938,5 +1089,41 @@ def templates_inspect(
     console.print(table)
 
 
-if __name__ == "__main__":
+def _normalize_php_argv(argv: list) -> list:
+    """Preprocess argv so ``--php`` without a version injects the auto-detect sentinel.
+
+    This allows the real CLI to accept both ``--php`` (auto-detect) and
+    ``--php 8.2`` (explicit version) even though Typer's ``Optional[str]``
+    option always requires a value.
+    """
+    result = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--php":
+            result.append("--php")
+            # If the next token looks like a PHP version (digits.digits), keep it.
+            if i + 1 < len(argv) and re.match(r"^\d+\.\d+$", argv[i + 1]):
+                i += 1
+                result.append(argv[i])
+            else:
+                result.append(_PHP_AUTO)
+        else:
+            result.append(argv[i])
+        i += 1
+    return result
+
+
+def run() -> None:
+    """Entry point for the installed CLI binary.
+
+    Preprocesses ``sys.argv`` to support ``--php [VERSION]`` optional-value
+    syntax before handing off to the Typer application.
+    """
+    import sys
+
+    sys.argv = _normalize_php_argv(sys.argv)
     app()
+
+
+if __name__ == "__main__":
+    run()

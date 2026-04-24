@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pathlib import Path
 from enum import Enum
-from typing import Optional
+from typing import Optional, Annotated
 
 
 class ServerType(str, Enum):
@@ -60,11 +60,21 @@ class VHostConfig(BaseModel):
         default=None,
         description="Unix Domain Socket path for Node.js (overrides node_port when set)",
     )
-    php_socket: str = Field(
-        default=DEFAULT_PHP_SOCKET, description="PHP-FPM socket path (PHP runtime)"
+    php_socket: Optional[str] = Field(
+        default=None,
+        description="PHP-FPM Unix socket path. When set must be an absolute path (starts with '/').",
     )
     template: str = Field(
         default="default", description="The template used to create the config"
+    )
+    ssl_enabled: bool = Field(
+        default=False, description="Whether SSL (HTTPS) is enabled via mkcert"
+    )
+    cert_path: Optional[Path] = Field(
+        default=None, description="Absolute path to the SSL certificate file (.pem)"
+    )
+    key_path: Optional[Path] = Field(
+        default=None, description="Absolute path to the SSL private key file (-key.pem)"
     )
 
     @field_validator("document_root")
@@ -84,6 +94,29 @@ class VHostConfig(BaseModel):
             )
 
         return v
+
+    @field_validator("php_socket")
+    @classmethod
+    def validate_php_socket(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith("/"):
+            raise ValueError(
+                f"php_socket must be an absolute path (must start with '/'), got: '{v}'"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def validate_ssl_fields(self) -> "VHostConfig":
+        """Require cert_path and key_path when ssl_enabled is True."""
+        if self.ssl_enabled:
+            if self.cert_path is None:
+                raise ValueError(
+                    "cert_path is required when ssl_enabled=True"
+                )
+            if self.key_path is None:
+                raise ValueError(
+                    "key_path is required when ssl_enabled=True"
+                )
+        return self
 
 
 class OSInfo(BaseModel):

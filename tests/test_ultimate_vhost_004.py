@@ -141,30 +141,35 @@ def test_static_mode_index_does_not_include_php():
 # ---------------------------------------------------------------------------
 
 
-def test_static_mode_has_commented_fastcgi_block():
+def test_static_mode_has_no_active_fastcgi_pass():
+    """Static mode must not have any active (uncommented) fastcgi_pass directives."""
     config = _render(runtime="static")
-    assert "# location ~ \\.php$" in config or "# location ~ \\.php$" in config.replace(
-        "\\", ""
-    )
-    # Normalise — check for the key directive inside a comment
-    assert any(
-        "fastcgi_pass" in line and line.strip().startswith("#")
+    assert not any(
+        "fastcgi_pass" in line and not line.strip().startswith("#")
         for line in config.splitlines()
     )
 
 
-def test_static_mode_has_commented_proxy_pass_block():
+def test_static_mode_with_php_socket_renders_fastcgi_block():
+    """When php_socket is supplied with runtime=php, fastcgi_pass is rendered."""
+    config = _render(runtime="php", php_socket="/run/php/php8.2-fpm.sock")
+    assert "fastcgi_pass unix:/run/php/php8.2-fpm.sock" in config
+
+
+def test_static_mode_has_no_active_proxy_pass_block():
+    """Static mode must not have any active proxy_pass directives."""
     config = _render(runtime="static")
-    assert any(
-        "proxy_pass" in line and line.strip().startswith("#")
+    assert not any(
+        "proxy_pass" in line and not line.strip().startswith("#")
         for line in config.splitlines()
     )
 
 
-def test_static_mode_has_commented_proxy_set_header():
+def test_static_mode_has_no_active_proxy_set_header():
+    """Static mode must not have any active proxy_set_header directives."""
     config = _render(runtime="static")
-    assert any(
-        "proxy_set_header" in line and line.strip().startswith("#")
+    assert not any(
+        "proxy_set_header" in line and not line.strip().startswith("#")
         for line in config.splitlines()
     )
 
@@ -325,7 +330,7 @@ def test_config_has_two_server_blocks():
 def test_cli_mutual_exclusivity_exits_code_1(doc_root, mocker):
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     result = runner.invoke(
-        app, ["create", "example.test", str(doc_root), "--php", "--python"]
+        app, ["create", "example.test", str(doc_root), "--php", "__auto__", "--python"]
     )
     assert result.exit_code == 1
 
@@ -333,7 +338,7 @@ def test_cli_mutual_exclusivity_exits_code_1(doc_root, mocker):
 def test_cli_mutual_exclusivity_shows_error_message(doc_root, mocker):
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     result = runner.invoke(
-        app, ["create", "example.test", str(doc_root), "--php", "--python"]
+        app, ["create", "example.test", str(doc_root), "--php", "__auto__", "--python"]
     )
     assert "mutually exclusive" in result.output
 
@@ -342,7 +347,7 @@ def test_cli_mutual_exclusivity_writes_no_files(tmp_nginx_dirs, doc_root, mocker
     available, enabled, _ = tmp_nginx_dirs
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     mocker.patch("vhost_helper.main.add_entry")
-    runner.invoke(app, ["create", "example.test", str(doc_root), "--php", "--python"])
+    runner.invoke(app, ["create", "example.test", str(doc_root), "--php", "__auto__", "--python"])
     assert not list(
         available.iterdir()
     ), "No config file should be written on mutual exclusion error"
@@ -365,7 +370,7 @@ def test_cli_php_flag_passes_runtime_to_provider(tmp_nginx_dirs, doc_root, mocke
         "vhost_helper.providers.nginx.NginxProvider.create_vhost"
     )
 
-    runner.invoke(app, ["create", "php.test", str(doc_root), "--php"])
+    runner.invoke(app, ["create", "php.test", str(doc_root), "--php", "__auto__"])
 
     assert mock_create.called
     config_arg: VHostConfig = mock_create.call_args[0][0]
@@ -440,7 +445,7 @@ def test_vhost_config_default_python_port(doc_root):
 
 def test_vhost_config_default_php_socket(doc_root):
     config = VHostConfig(domain="example.test", document_root=doc_root)
-    assert config.php_socket == DEFAULT_PHP_SOCKET
+    assert config.php_socket is None
 
 
 def test_vhost_config_accepts_php_runtime(doc_root):

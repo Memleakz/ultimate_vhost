@@ -409,6 +409,7 @@ def test_cli_all_three_runtime_flags_mutually_exclusive(mock_nginx_setup, tmp_pa
             "--provider",
             "nginx",
             "--php",
+            "__auto__",
             "--python",
             "--nodejs",
         ],

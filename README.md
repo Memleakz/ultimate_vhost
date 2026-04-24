@@ -2,7 +2,7 @@
 
 > A professional, modular CLI tool for automated virtual host management across Linux distributions.
 
-**Version**: v0.1 | **Status**: Stable | **Supported Distros**: Debian/Ubuntu, Fedora/RHEL
+**Version**: v0.3 | **Status**: Stable | **Supported Distros**: Debian/Ubuntu, Fedora/RHEL
 
 ## Why?
 Managing virtual hosts manually is a repetitive and error-prone process involving sensitive modifications to `/etc/hosts` and web server configurations. **VHost Helper** eliminates this friction by providing a unified, distribution-agnostic CLI that automates provisioning, security hardening, and service management with atomic precision.
@@ -13,7 +13,7 @@ Whether you are a local developer spinning up projects on `.test` domains or a s
 
 ## Supported Environments
 
-VHost Helper v0.1 is validated against the following four configurations:
+VHost Helper v0.2 is validated against the following four configurations:
 
 | Distribution  | Web Server | Config Layout                       | Tested |
 |---------------|------------|-------------------------------------|--------|
@@ -162,8 +162,13 @@ vhost create my-project.test /var/www/my-project
 vhost create my-project.test /var/www/my-project --provider nginx
 vhost create my-project.test /var/www/my-project --provider apache
 
-# PHP-FPM site
+# PHP-FPM — auto-detect highest installed version
+vhost create php-app.test /var/www/php-app --php
 vhost create php-app.test /var/www/php-app --php --provider apache
+
+# PHP-FPM — require a specific version (exits with code 1 if not found)
+vhost create php-app.test /var/www/php-app --php 8.2
+vhost create php-app.test /var/www/php-app --php 8.1 --provider nginx
 
 # Python (Gunicorn) reverse proxy
 vhost create api.test /var/www/api --python --python-port 8000 --provider nginx
@@ -179,6 +184,12 @@ vhost create node-app.test /var/www/node-app --nodejs --node-socket /run/node-ap
 
 # Custom listen port
 vhost create staging.test /var/www/staging --port 8080
+
+# HTTPS with a locally-trusted certificate (requires mkcert)
+vhost create myapp.test /var/www/myapp --mkcert
+
+# HTTPS with a custom certificate storage directory
+vhost create myapp.test /var/www/myapp --mkcert --ssl-dir /home/user/.certs
 ```
 
 ### `remove` — Tear Down a Virtual Host
@@ -243,16 +254,32 @@ vhost info
 
 ### PHP-FPM
 
-VHost Helper automatically resolves the correct PHP-FPM socket path for your distribution:
+The `--php` flag automatically discovers and configures the correct PHP-FPM socket for your distribution. Pass an optional version argument (`--php 8.2`) when you need a specific PHP version.
 
-| Distribution  | Socket Path                        |
-|---------------|------------------------------------|
-| Debian/Ubuntu | `/run/php/php*.fpm.sock`           |
-| Fedora/RHEL   | `/run/php-fpm/*.sock`              |
+#### Auto-detect (recommended)
 
 ```bash
+# Detect the highest installed PHP-FPM version automatically
+vhost create php-app.test /var/www/php-app --php
 vhost create php-app.test /var/www/php-app --php --provider apache
 ```
+
+#### Explicit version
+
+```bash
+# Target a specific PHP version — exits with code 1 if that version is not installed
+vhost create php-app.test /var/www/php-app --php 8.2
+vhost create php-app.test /var/www/php-app --php 8.1 --provider nginx
+```
+
+#### Socket path resolution
+
+| Distribution  | Socket Path (per version)                         |
+|---------------|---------------------------------------------------|
+| Debian/Ubuntu | `/run/php/php<VERSION>-fpm.sock`                  |
+| Fedora/RHEL   | `/run/php-fpm/www.sock` (version-agnostic)        |
+
+After creating the vhost, VHost Helper attempts `systemctl enable --now php<VERSION>-fpm` automatically. If the service fails to start, a **non-blocking warning** is printed and vhost creation still succeeds.
 
 ### Python (Gunicorn Proxy)
 
@@ -283,12 +310,62 @@ The Nginx template adds WebSocket-upgrade headers (`Connection`, `Upgrade`) auto
 
 ---
 
+### Local SSL via mkcert
+
+The `--mkcert` flag provisions a locally-trusted certificate and key pair for the domain and configures the web server to listen on port 443. The HTTP virtual host automatically redirects to HTTPS.
+
+**Prerequisites**: [`mkcert`](https://github.com/FiloSottile/mkcert) must be installed and `mkcert -install` must have been run once on the machine to register the local CA in the system trust store.
+
+```bash
+# Install mkcert (one-time)
+# Debian/Ubuntu
+sudo apt install mkcert && mkcert -install
+
+# Fedora/RHEL
+sudo dnf install mkcert && mkcert -install
+```
+
+```bash
+# Create an HTTPS vhost (certificate stored in /etc/vhost-helper/ssl/)
+sudo vhost create myapp.test /var/www/myapp --mkcert
+
+# Specify a custom certificate directory
+sudo vhost create myapp.test /var/www/myapp --mkcert --ssl-dir /opt/certs
+
+# HTTPS + Apache
+sudo vhost create myapp.test /var/www/myapp --mkcert --provider apache
+```
+
+After creation, navigate to `https://myapp.test` — the browser shows a green padlock because the certificate is signed by the mkcert local CA.
+
+**Certificate file layout** (default directory `/etc/vhost-helper/ssl/`):
+
+```
+/etc/vhost-helper/ssl/
+├── myapp.test.pem       (certificate, mode 0640)
+└── myapp.test-key.pem   (private key, mode 0640)
+```
+
+**SSL directory precedence** (highest to lowest):
+
+| Source | Example |
+|--------|---------|
+| `--ssl-dir` CLI flag | `--ssl-dir /opt/certs` |
+| `VHOST_SSL_DIR` environment variable | `export VHOST_SSL_DIR=/opt/certs` |
+| Built-in default | `/etc/vhost-helper/ssl` |
+
+> If `--mkcert` is omitted, the tool generates a standard HTTP (port 80) configuration with zero changes to SSL behaviour.
+
+---
+
 ## Features
 
 *   **Atomic Hostfile Management**: Safely add or remove entries in `/etc/hosts` without corrupting existing mappings. Duplicate detection prevents double entries.
 *   **Intelligent OS Detection**: Distribution-agnostic support for **Debian/Ubuntu** and **RHEL/CentOS/Fedora**.
 *   **Multi-Provider Architecture**: Native support for **Nginx** and **Apache** with intelligent auto-detection via binary and config-path scanning.
 *   **Multi-Runtime Support**: One-command provisioning for **Static HTML**, **PHP-FPM**, **Python (Gunicorn)**, and **Node.js (Reverse Proxy)** applications.
+*   **Smart PHP-FPM Auto-Detection**: `--php` discovers the highest installed PHP-FPM version automatically. `--php X.Y` targets a specific version and exits immediately with a descriptive error if that version is not present on the system. The correct PHP-FPM service (`php<VERSION>-fpm` on Debian, `php-fpm` on RHEL) is started automatically after vhost creation — a non-blocking warning is shown if the service fails to start.
+*   **Local SSL via mkcert**: The `--mkcert` flag automatically generates a locally-trusted certificate, configures port-443 listeners, and adds an HTTP→HTTPS redirect — all in a single command.
 *   **Security First**: Operations are performed via targeted `sudo` escalation rather than running the entire tool as root. Path injection validation is enforced on all domain inputs.
 *   **Hierarchical Template Engine**: Custom templates in `~/.config/vhost_helper/templates/` take precedence over bundled defaults.
 *   **Developer Experience**: Includes automated Bash autocompletion and a professional CLI interface powered by `Typer` and `Rich`.
@@ -318,7 +395,7 @@ The following Jinja2 variables are injected at render time and are available in 
 | `port`         | `int` | `80`                      | nginx, apache  | TCP port the virtual host listens on |
 | `runtime`      | `str` | `static`                  | nginx, apache  | Runtime mode — see values below |
 | `python_port`  | `int` | `8000`                    | nginx, apache  | gunicorn/uvicorn port (only when `runtime=python`) |
-| `php_socket`   | `str` | `/run/php/php-fpm.sock`   | nginx, apache  | PHP-FPM unix socket path (only when `runtime=php`) |
+| `php_socket`   | `str\|None` | `None`             | nginx, apache  | PHP-FPM unix socket path. Set automatically by `--php` / `--php 8.2`. When non-`None`, PHP `location` / `FilesMatch` blocks are rendered in the template. |
 | `node_port`    | `int` | `3000`                    | nginx, apache  | Node.js upstream TCP port (only when `runtime=nodejs`, ignored when `node_socket` is set) |
 | `node_socket`  | `str\|None` | `None`             | nginx, apache  | Unix Domain Socket path for Node.js (only when `runtime=nodejs`; overrides `node_port` when set) |
 | `os_family`    | `str` | *(auto-detected)*         | nginx, apache  | `debian_family` or `rhel_family` — controls provider-specific config paths |
@@ -371,6 +448,7 @@ VHost Helper reads system paths at startup. All path overrides are only active w
 | `APACHE_SITES_ENABLED` | Path to Apache `sites-enabled` (Debian only). | `/etc/apache2/sites-enabled` |
 | `APACHE_SITES_DISABLED` | Path to Apache disabled configs (RHEL only). | `/etc/httpd/conf.disabled` |
 | `VHOST_HOSTS_FILE` | Override path to the system hosts file. | `/etc/hosts` |
+| `VHOST_SSL_DIR` | Override the default SSL certificate storage directory. | `/etc/vhost-helper/ssl` |
 
 ```bash
 # Copy the template and uncomment variables you need
@@ -393,7 +471,7 @@ pip install -r requirements-dev.txt
 
 ### Running Tests
 
-The project maintains a rigorous test suite with over **664 tests** and a mandatory **80% coverage threshold**.
+The project maintains a rigorous test suite with over **895 tests** and a mandatory **80% coverage threshold**.
 
 ```bash
 # Run full suite with coverage
@@ -417,6 +495,7 @@ VHost Helper uses a modular, provider-based architecture. `config.py` handles di
 |-------------|-----------------|---------------------------------------|
 | CLI         | `main.py`       | Typer commands, provider auto-detection |
 | Providers   | `providers/`    | Nginx and Apache specific logic        |
+| PHP-FPM     | `php_fpm.py`    | Version discovery, socket resolution, service orchestration |
 | OS Detection| `os_detector.py`| `/etc/os-release` parsing             |
 | Hostfile    | `hostfile.py`   | Atomic `/etc/hosts` management        |
 | Config      | `config.py`     | Distribution-aware path constants     |

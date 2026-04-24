@@ -550,6 +550,7 @@ def test_cli_nodejs_and_php_mutually_exclusive(mock_nginx_cli_setup, tmp_path):
             "nginx",
             "--nodejs",
             "--php",
+            "__auto__",
         ],
     )
     assert result.exit_code != 0 or "mutually exclusive" in result.stdout

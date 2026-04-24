@@ -476,7 +476,7 @@ class TestCliCreateRollback:
         doc_root.mkdir()
 
         result = runner.invoke(
-            app, ["create", "example.test", str(doc_root), "--php", "--python"]
+            app, ["create", "example.test", str(doc_root), "--php", "__auto__", "--python"]
         )
         assert result.exit_code == 1
         assert "mutually exclusive" in result.output

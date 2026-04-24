@@ -13,6 +13,13 @@ variables:
     default: null
   - name: os_family
     description: "OS family used to resolve distribution-specific log directory paths."
+  - name: use_ssl
+    description: "When true, renders a 443 SSL block and HTTP→HTTPS redirect."
+    default: false
+  - name: cert_path
+    description: "Absolute path to the SSL certificate (.pem). Required when use_ssl=true."
+  - name: key_path
+    description: "Absolute path to the SSL private key (-key.pem). Required when use_ssl=true."
 --- #}
 {% if domain.startswith('www.') %}
 {% set redirect_domain = domain[4:] %}
@@ -20,6 +27,69 @@ variables:
 {% set redirect_domain = 'www.' ~ domain %}
 {% endif %}
 
+{% if use_ssl %}
+# ============================================================
+# HTTP → HTTPS redirect — {{ domain }}
+# ============================================================
+<VirtualHost *:80>
+    ServerName {{ domain }}
+    ServerAlias {{ redirect_domain }}
+    RewriteEngine On
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</VirtualHost>
+
+# ============================================================
+# HTTPS Node.js Reverse Proxy — {{ domain }}
+# Requires: mod_proxy, mod_proxy_http (and mod_proxy_wstunnel
+#           for WebSocket support).
+# ============================================================
+<VirtualHost *:443>
+    ServerName {{ domain }}
+
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}
+    SSLCertificateKeyFile {{ key_path }}
+    {% if os_family == 'debian_family' %}
+    Protocols h2 http/1.1
+    {% endif %}
+
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+
+    {% if node_socket %}
+    ProxyPass / unix:{{ node_socket }}|http://localhost/
+    ProxyPassReverse / unix:{{ node_socket }}|http://localhost/
+    {% else %}
+    ProxyPass / http://127.0.0.1:{{ node_port }}/
+    ProxyPassReverse / http://127.0.0.1:{{ node_port }}/
+    {% endif %}
+
+{% if php_socket %}
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:{{ php_socket }}|fcgi://localhost"
+    </FilesMatch>
+{% endif %}
+
+    {% if os_family == 'rhel_family' %}
+    ErrorLog /var/log/httpd/{{ domain }}-error.log
+    CustomLog /var/log/httpd/{{ domain }}-access.log combined
+    {% else %}
+    ErrorLog ${APACHE_LOG_DIR}/{{ domain }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ domain }}-access.log combined
+    {% endif %}
+</VirtualHost>
+
+# ============================================================
+# HTTPS canonical redirect: {{ redirect_domain }} → {{ domain }} (301)
+# ============================================================
+<VirtualHost *:443>
+    ServerName {{ redirect_domain }}
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}
+    SSLCertificateKeyFile {{ key_path }}
+    Redirect permanent / https://{{ domain }}/
+</VirtualHost>
+{% else %}
 # ============================================================
 # Node.js Reverse Proxy — {{ domain }}
 # Requires: mod_proxy, mod_proxy_http (and mod_proxy_wstunnel
@@ -39,6 +109,12 @@ variables:
     ProxyPassReverse / http://127.0.0.1:{{ node_port }}/
     {% endif %}
 
+{% if php_socket %}
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:{{ php_socket }}|fcgi://localhost"
+    </FilesMatch>
+{% endif %}
+
     {% if os_family == 'rhel_family' %}
     ErrorLog /var/log/httpd/{{ domain }}-error.log
     CustomLog /var/log/httpd/{{ domain }}-access.log combined
@@ -55,3 +131,4 @@ variables:
     ServerName {{ redirect_domain }}
     Redirect permanent / http://{{ domain }}{% if port != 80 and port != 443 %}:{{ port }}{% endif %}/
 </VirtualHost>
+{% endif %}

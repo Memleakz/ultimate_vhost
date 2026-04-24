@@ -6,7 +6,7 @@ from pathlib import Path
 lib_path = Path(__file__).resolve().parent.parent / "lib"
 sys.path.insert(0, str(lib_path))
 
-from vhost_helper.main import app
+from vhost_helper.main import run
 
 if __name__ == "__main__":
-    app()
+    run()

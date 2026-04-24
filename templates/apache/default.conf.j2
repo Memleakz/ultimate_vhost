@@ -5,6 +5,86 @@
 {% set redirect_domain = 'www.' ~ domain %}
 {% endif %}
 
+{% if use_ssl %}
+# ============================================================
+# HTTP → HTTPS redirect — {{ domain }}
+# ============================================================
+<VirtualHost *:80>
+    ServerName {{ domain }}
+    ServerAlias {{ redirect_domain }}
+    RewriteEngine On
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</VirtualHost>
+
+# ============================================================
+# Main HTTPS server block — {{ domain }}
+# ============================================================
+<VirtualHost *:443>
+    ServerName {{ domain }}
+
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}
+    SSLCertificateKeyFile {{ key_path }}
+    {% if os_family == 'debian_family' %}
+    Protocols h2 http/1.1
+    {% endif %}
+
+    DocumentRoot "{{ document_root }}"
+
+    <Directory "{{ document_root }}">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    {% if runtime == 'php' %}
+    DirectoryIndex index.php index.html
+    <FilesMatch \.php$>
+        {% if php_socket.startswith('/') %}
+        SetHandler "proxy:unix:{{ php_socket }}|fcgi://localhost"
+        {% else %}
+        SetHandler "proxy:{{ php_socket }}"
+        {% endif %}
+    </FilesMatch>
+    {% elif runtime == 'python' %}
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    ProxyPass / http://127.0.0.1:{{ python_port }}/
+    ProxyPassReverse / http://127.0.0.1:{{ python_port }}/
+    {% elif runtime == 'nodejs' %}
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    {% if node_socket %}
+    ProxyPass / unix:{{ node_socket }}|http://localhost/
+    ProxyPassReverse / unix:{{ node_socket }}|http://localhost/
+    {% else %}
+    ProxyPass / http://127.0.0.1:{{ node_port }}/
+    ProxyPassReverse / http://127.0.0.1:{{ node_port }}/
+    {% endif %}
+    {% else %}
+    DirectoryIndex index.html
+    {% endif %}
+
+    {% if os_family == 'rhel_family' %}
+    ErrorLog /var/log/httpd/{{ domain }}-error.log
+    CustomLog /var/log/httpd/{{ domain }}-access.log combined
+    {% else %}
+    ErrorLog ${APACHE_LOG_DIR}/{{ domain }}-error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ domain }}-access.log combined
+    {% endif %}
+</VirtualHost>
+
+# ============================================================
+# HTTPS canonical redirect: {{ redirect_domain }} → {{ domain }} (301)
+# ============================================================
+<VirtualHost *:443>
+    ServerName {{ redirect_domain }}
+    SSLEngine on
+    SSLCertificateFile {{ cert_path }}
+    SSLCertificateKeyFile {{ key_path }}
+    Redirect permanent / https://{{ domain }}/
+</VirtualHost>
+{% else %}
 # ============================================================
 # Main server block — {{ domain }}
 # ============================================================
@@ -61,3 +141,4 @@
     ServerName {{ redirect_domain }}
     Redirect permanent / http://{{ domain }}{% if port != 80 and port != 443 %}:{{ port }}{% endif %}/
 </VirtualHost>
+{% endif %}

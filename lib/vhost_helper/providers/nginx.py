@@ -83,6 +83,9 @@ class NginxProvider:
             node_socket=config.node_socket,
             php_socket=config.php_socket,
             os_family=self.os_family,
+            use_ssl=config.ssl_enabled,
+            cert_path=str(config.cert_path) if config.cert_path else "",
+            key_path=str(config.key_path) if config.key_path else "",
         )
 
         with tempfile.NamedTemporaryFile(
