@@ -38,13 +38,16 @@ def test_two_root_layout_integrity():
         "global_context.md",
         "API_DOCS.md",
     ]
-    
+
     import os
+
     is_ci = os.getenv("GITHUB_ACTIONS") == "true"
-    
+
     if not is_ci:
         for f in internal_docs:
-            assert (ai_root / f).exists(), f"Internal documentation {f} missing from AI root"
+            assert (
+                ai_root / f
+            ).exists(), f"Internal documentation {f} missing from AI root"
     else:
         # In CI, we just verify the AI root is NOT the same as deliverable root
         assert ai_root != deliverable_root

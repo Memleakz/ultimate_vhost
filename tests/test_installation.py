@@ -15,11 +15,11 @@ def test_vhost_symlink_resolution():
             deliverable_root = current
             break
         current = current.parent
-    
+
     if not deliverable_root:
         # Fallback to parent of tests/ if not found
         deliverable_root = Path(__file__).resolve().parent.parent
-        
+
     vhost_bin = deliverable_root / "bin" / "vhost"
 
     # Create a temporary directory for the symlink
@@ -68,7 +68,7 @@ def test_installer_scripts_existence():
             deliverable_root = current
             break
         current = current.parent
-    
+
     if not deliverable_root:
         deliverable_root = Path(__file__).resolve().parent.parent
 

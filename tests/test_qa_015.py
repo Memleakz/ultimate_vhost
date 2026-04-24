@@ -407,6 +407,7 @@ class TestMainEnableDisableEarlyExit:
 # README documentation — acceptance criteria verification
 # ---------------------------------------------------------------------------
 
+
 # Find the deliverable root
 def _get_deliverable_root():
     current = Path(__file__).resolve().parent
@@ -416,7 +417,9 @@ def _get_deliverable_root():
         current = current.parent
     return Path(__file__).resolve().parent.parent
 
+
 _DELIVERABLE_ROOT = _get_deliverable_root()
+
 
 @pytest.mark.parametrize(
     "readme_path",
