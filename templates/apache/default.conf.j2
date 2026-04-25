@@ -32,7 +32,7 @@
     DocumentRoot "{{ document_root }}"
 
     <Directory "{{ document_root }}">
-        Options Indexes FollowSymLinks
+        Options -Indexes +FollowSymLinks
         AllowOverride All
         Require all granted
     </Directory>
@@ -93,7 +93,7 @@
     DocumentRoot "{{ document_root }}"
 
     <Directory "{{ document_root }}">
-        Options Indexes FollowSymLinks
+        Options -Indexes +FollowSymLinks
         AllowOverride All
         Require all granted
     </Directory>

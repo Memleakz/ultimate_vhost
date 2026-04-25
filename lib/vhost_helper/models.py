@@ -16,11 +16,12 @@ class RuntimeMode(str, Enum):
     NODEJS = "nodejs"
 
 
-# Default php-fpm socket paths keyed by OS family
+# Default php-fpm socket paths keyed by canonical OS family.
+# Keys use the canonical "_family" suffix to match detect_os_family() output.
 PHP_SOCKET_PATHS: dict[str, str] = {
-    "debian": "/run/php/php-fpm.sock",
-    "rhel": "/run/php-fpm/www.sock",
-    "arch": "/run/php-fpm/php-fpm.sock",
+    "debian_family": "/run/php/php-fpm.sock",
+    "rhel_family": "/run/php-fpm/www.sock",
+    "arch_family": "/run/php-fpm/php-fpm.sock",
 }
 DEFAULT_PHP_SOCKET = "/run/php/php-fpm.sock"
 
@@ -93,6 +94,24 @@ class VHostConfig(BaseModel):
                 "Document root path contains forbidden characters (quotes or newlines)."
             )
 
+        return v
+
+    @field_validator("node_socket")
+    @classmethod
+    def validate_node_socket(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v != "":
+            if not v.startswith("/"):
+                raise ValueError(
+                    f"node_socket must be an absolute path (must start with '/'), got: '{v}'"
+                )
+            # Guard against config injection: newlines or semicolons would break
+            # the generated Nginx/Apache config file.
+            forbidden = ["\n", "\r", ";", '"', "\x00"]
+            if any(char in v for char in forbidden):
+                raise ValueError(
+                    "node_socket path contains forbidden characters "
+                    "(newlines, semicolons, quotes, or null bytes)."
+                )
         return v
 
     @field_validator("php_socket")

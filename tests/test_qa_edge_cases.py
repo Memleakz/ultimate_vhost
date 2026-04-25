@@ -89,7 +89,9 @@ def test_cli_create_with_invalid_document_root(tmp_path):
     result = runner.invoke(app, ["create", "example.test", str(file_path)])
     assert result.exit_code != 0
     output = re.sub(r"\s+", " ", result.output)
-    assert "must be a directory" in output
+    # The scaffolding layer intercepts the file-not-a-directory case before
+    # Pydantic validation; the CLI message is "exists but is not a directory".
+    assert "not a directory" in output
 
 
 def test_cli_info_permission_denied(mocker, tmp_path):

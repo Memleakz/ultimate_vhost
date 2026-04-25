@@ -113,10 +113,13 @@ def test_os_detector_failure(mocker):
 
 
 def test_cli_create_nonexistent_dir():
-    # Attempt to create a vhost with a non-existent document root
-    result = runner.invoke(app, ["create", "test.test", "/nonexistent/path"])
+    # Attempt to create a vhost with a non-existent document root.
+    # --no-create-dir ensures the new scaffolding auto-create path is bypassed
+    # so we get the expected exit-1 / "does not exist" behaviour.
+    result = runner.invoke(
+        app, ["create", "test.test", "/nonexistent/path", "--no-create-dir"]
+    )
     assert result.exit_code == 1
-    assert "Document root" in result.stdout
     assert "does not exist" in result.stdout
 
 

@@ -113,6 +113,22 @@ def extract_metadata(template_path: Path) -> dict[str, dict]:
         return {}
 
 
+def _is_safe_path_component(name: str) -> bool:
+    """Return True if *name* is a safe single path component.
+
+    A safe component contains only alphanumerics, hyphens, and underscores, has
+    no path separators, and is not the special relative reference ``..``.  This
+    prevents path-traversal attacks when user-supplied names are appended to
+    base directory paths.
+    """
+    if not name or name in (".", ".."):
+        return False
+    if "/" in name or "\\" in name:
+        return False
+    import re as _re
+    return bool(_re.fullmatch(r"[A-Za-z0-9_\-]+", name))
+
+
 def list_templates(
     templates_dir: Path,
     provider: Optional[str] = None,
@@ -142,6 +158,10 @@ def list_templates(
     result: dict[str, list[str]] = {}
 
     if not templates_dir.is_dir():
+        return result
+
+    # Validate the provider name before using it as a path component.
+    if provider is not None and not _is_safe_path_component(provider):
         return result
 
     provider_dirs: list[Path]
@@ -189,5 +209,24 @@ def resolve_template_path(name: str, templates_dir: Path) -> Optional[Path]:
         return None
 
     provider, mode = parts
-    candidate = templates_dir.resolve() / provider / f"{mode}.conf.j2"
+
+    # Validate both components to prevent path-traversal attacks.
+    # provider must be a single safe identifier; mode may contain hyphens but
+    # no directory separators or dot-dot sequences.
+    if not _is_safe_path_component(provider):
+        return None
+    # Mode can contain hyphens between segments (e.g. "php-fpm"), but each
+    # hyphen-separated segment must itself be safe.
+    if not all(_is_safe_path_component(seg) for seg in mode.split("-")):
+        return None
+
+    base = templates_dir.resolve()
+    candidate = (base / provider / f"{mode}.conf.j2").resolve()
+
+    # Ensure the resolved candidate path is still inside templates_dir (confinement check).
+    try:
+        candidate.relative_to(base)
+    except ValueError:
+        return None
+
     return candidate if candidate.is_file() else None

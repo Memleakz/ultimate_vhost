@@ -13,7 +13,7 @@ Whether you are a local developer spinning up projects on `.test` domains or a s
 
 ## Supported Environments
 
-VHost Helper v0.2 is validated against the following four configurations:
+VHost Helper v0.3 is validated against the following four configurations:
 
 | Distribution  | Web Server | Config Layout                       | Tested |
 |---------------|------------|-------------------------------------|--------|
@@ -190,6 +190,12 @@ vhost create myapp.test /var/www/myapp --mkcert
 
 # HTTPS with a custom certificate storage directory
 vhost create myapp.test /var/www/myapp --mkcert --ssl-dir /home/user/.certs
+
+# Non-interactive: create the document root automatically and scaffold index.html
+vhost create myapp.test /var/www/myapp --create-dir --scaffold
+
+# Non-interactive: abort if the document root does not exist
+vhost create myapp.test /var/www/myapp --no-create-dir
 ```
 
 ### `remove` — Tear Down a Virtual Host
@@ -246,6 +252,93 @@ vhost info my-project.test
 
 # System info (shows detected OS, family, installed providers)
 vhost info
+```
+
+### `logs` — Tail Live Log Files for a Virtual Host
+
+Stream server logs directly to your terminal. The command locates the correct log file paths by reading the active configuration file — no manual path hunting required.
+
+```bash
+# Tail both access and error logs (default)
+vhost logs myapp.test
+
+# Tail only the error log
+vhost logs myapp.test --error
+
+# Tail only the access log
+vhost logs myapp.test --access
+
+# Explicit provider override
+vhost logs myapp.test --provider apache
+vhost logs myapp.test --provider nginx
+```
+
+**Behaviour:**
+- Reads `access_log` / `error_log` (Nginx) or `CustomLog` / `ErrorLog` (Apache) directives directly from the active config file.
+- Exits with a descriptive error if:
+  - The vhost is not enabled (config not found in `sites-enabled` / `conf.d`).
+  - No log directive is present in the configuration.
+  - The log file does not exist on the filesystem.
+- `--error` and `--access` are mutually exclusive. Use one at a time.
+- Press `Ctrl+C` to stop tailing; exits with code `0`.
+
+---
+
+## Interactive Directory Scaffolding
+
+When `vhost create` is run with a non-existent `document_root`, VHost Helper automatically handles the setup so you can reach a working "It works!" page in a single command.
+
+### How It Works
+
+**Step 1 — Directory check**
+
+If the target directory does not exist, the tool checks the environment:
+
+| Environment | Behaviour |
+|---|---|
+| Interactive TTY, no flag | Prompts: `Directory '/path' does not exist. Create it? [Y/n]` |
+| `--create-dir` flag | Creates the directory without prompting |
+| `--no-create-dir` flag | Prints an error and exits with code `1` |
+| Non-interactive (no TTY) | Creates the directory automatically (safe pipeline default) |
+
+**Step 2 — index.html generation**
+
+If the directory was just created (or is empty), the tool offers to scaffold a starter page:
+
+| Environment | Behaviour |
+|---|---|
+| Interactive TTY, no flag | Prompts: `Generate an index.html so you can test it immediately? [Y/n]` |
+| `--scaffold` flag | Generates `index.html` without prompting |
+| `--no-scaffold` flag | Skips generation entirely |
+| Non-interactive (no TTY) | Skips generation (safe default — do not overwrite CI artifacts) |
+
+The generated `index.html` is a professional "It Works! Powered by ultimate_vhost" landing page rendered from `templates/common/index.html.j2`. Ownership and permissions (`644`, `<user>:<webserver-group>`) match the rest of the webroot.
+
+### Scaffolding Flags
+
+| Flag | Description |
+|---|---|
+| `--create-dir` | Create the document root directory if it does not exist (no prompt). |
+| `--no-create-dir` | Abort with exit code `1` if the document root does not exist. |
+| `--scaffold` | Generate a starter `index.html` in an empty document root (no prompt). |
+| `--no-scaffold` | Never generate an `index.html`, even after creating the document root. |
+
+`--create-dir` and `--no-create-dir` are mutually exclusive. `--scaffold` and `--no-scaffold` are mutually exclusive.
+
+### Examples
+
+```bash
+# Fully interactive — prompts for both directory and index.html
+vhost create myapp.test /var/www/myapp
+
+# CI/script: create everything automatically
+vhost create myapp.test /var/www/myapp --create-dir --scaffold
+
+# Fail fast if the webroot is not already prepared
+vhost create myapp.test /var/www/myapp --no-create-dir
+
+# Create the directory but skip the index.html (you will add your own files)
+vhost create myapp.test /var/www/myapp --create-dir --no-scaffold
 ```
 
 ---
@@ -360,6 +453,7 @@ After creation, navigate to `https://myapp.test` — the browser shows a green p
 
 ## Features
 
+*   **Interactive Directory Scaffolding**: When the document root is missing, `vhost create` offers to create it and generate a "It Works!" `index.html` with correct ownership — getting you to a working browser page in a single command. Fully controllable via `--create-dir`, `--no-create-dir`, `--scaffold`, and `--no-scaffold` flags for CI environments.
 *   **Atomic Hostfile Management**: Safely add or remove entries in `/etc/hosts` without corrupting existing mappings. Duplicate detection prevents double entries.
 *   **Intelligent OS Detection**: Distribution-agnostic support for **Debian/Ubuntu** and **RHEL/CentOS/Fedora**.
 *   **Multi-Provider Architecture**: Native support for **Nginx** and **Apache** with intelligent auto-detection via binary and config-path scanning.
@@ -471,7 +565,7 @@ pip install -r requirements-dev.txt
 
 ### Running Tests
 
-The project maintains a rigorous test suite with over **895 tests** and a mandatory **80% coverage threshold**.
+The project maintains a rigorous test suite with over **1087 tests** and a mandatory **80% coverage threshold** (current: 99%).
 
 ```bash
 # Run full suite with coverage
@@ -499,6 +593,7 @@ VHost Helper uses a modular, provider-based architecture. `config.py` handles di
 | OS Detection| `os_detector.py`| `/etc/os-release` parsing             |
 | Hostfile    | `hostfile.py`   | Atomic `/etc/hosts` management        |
 | Config      | `config.py`     | Distribution-aware path constants     |
+| Scaffolding | `scaffolding.py`| Interactive directory creation and `index.html` generation |
 
 ### Provider Auto-Detection
 
@@ -509,6 +604,77 @@ When `--provider` is not specified, the CLI uses this priority chain:
 3. If no config exists yet (e.g., `create`), check which server binaries are installed (`nginx`, `apache2`, `httpd`).
 4. If only one binary is found, use that provider.
 5. If both or neither are found, default to Nginx.
+
+## Automatic Permission & SELinux Management
+
+After a virtual host is created, VHost Helper automatically applies the "gold standard" permission model to the webroot directory, eliminating the most common cause of post-creation "403 Forbidden" errors.
+
+### Default Behaviour
+
+When `vhost create` completes successfully, the following four operations are applied to the `<document_root>`:
+
+1. **Ownership** — `chown -R <current_user>:<webserver_group> <document_root>`  
+   The owner is set to the currently logged-in user. The group is resolved from the distribution × provider matrix:
+
+   | Distribution  | Provider | Default Group |
+   |---------------|----------|---------------|
+   | Debian/Ubuntu | Nginx    | `www-data`    |
+   | Debian/Ubuntu | Apache   | `www-data`    |
+   | Fedora/RHEL   | Nginx    | `nginx`       |
+   | Fedora/RHEL   | Apache   | `apache`      |
+
+2. **Directory permissions** — `find <document_root> -type d -exec chmod 755 {} +`  
+   Result: `drwxr-xr-x` on all directories.
+
+3. **File permissions** — `find <document_root> -type f -exec chmod 644 {} +`  
+   Result: `-rw-r--r--` on all files.
+
+4. **SetGID bit** — `find <document_root> -type d -exec chmod g+s {} +`  
+   Result: `drwxr-sr-x`. New files created inside the webroot inherit the web server group automatically.
+
+### SELinux Context Hardening (RHEL/Fedora Only)
+
+On RHEL/Fedora hosts where SELinux is in `Enforcing` or `Permissive` mode, VHost Helper also applies the `httpd_sys_content_t` security context to the webroot:
+
+- **Preferred (persistent)**: `semanage fcontext` + `restorecon` — the label survives a `restorecon -R` sweep.
+- **Fallback (non-persistent)**: `chcon -Rt httpd_sys_content_t <document_root>` — used when `semanage` is not installed.
+
+Verify with: `ls -Z <document_root>` — the output should show `httpd_sys_content_t`.
+
+### Override Flags
+
+All four aspects of the permission model can be overridden on the `vhost create` command:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--webroot-user TEXT` | Current login user | Override the owner applied by `chown`. |
+| `--webroot-group TEXT` | Resolved service group | Override the group applied by `chown`. |
+| `--webroot-perms DIR:FILE` | `755:644` | Override directory and file octal modes (e.g. `750:640`). |
+| `--skip-permissions` | `false` | Skip all permission and SELinux steps entirely. |
+
+`--skip-permissions` is mutually exclusive with the other three flags.
+
+### Examples
+
+```bash
+# Default: current user as owner, 'www-data' as group (Debian+Nginx)
+vhost create mysite.test /var/www/mysite
+
+# Custom group for an Apache deployment on RHEL
+vhost create mysite.test /var/www/mysite --provider apache --webroot-group apache
+
+# Tighter permissions for a production site
+vhost create mysite.test /var/www/mysite --webroot-perms 750:640
+
+# Skip all permission management (you handle your own ACLs)
+vhost create mysite.test /var/www/mysite --skip-permissions
+
+# Full override: custom owner, custom group, custom modes
+vhost create mysite.test /var/www/mysite \
+  --webroot-user deploy \
+  --webroot-group www-data \
+  --webroot-perms 755:644
+```
 
 ---
 

@@ -1,5 +1,8 @@
 import typer
 import re
+import os
+import shutil
+import subprocess
 from contextlib import contextmanager
 from typing import Optional, Union
 from pathlib import Path
@@ -28,6 +31,15 @@ from .providers.nginx import NginxProvider, is_nginx_installed, is_nginx_running
 from .providers.apache import ApacheProvider, is_apache_installed, is_apache_running
 from .os_detector import get_os_info
 from .utils import set_active_live, preflight_sudo_check
+from .permissions import (
+    resolve_webserver_user_group,
+    get_current_user,
+    validate_webroot_perms,
+    validate_unix_name,
+    apply_webroot_permissions,
+    is_selinux_active,
+    apply_selinux_webroot_context,
+)
 from .ssl import check_mkcert_binary, generate_certificate, get_ssl_dir
 from .php_fpm import (
     PhpFpmNotFoundError,
@@ -41,6 +53,14 @@ from .template_inspector import (
     resolve_template_path,
     extract_variables,
     extract_metadata,
+)
+from .logs import extract_nginx_log_paths, extract_apache_log_paths
+from .scaffolding import (
+    _is_tty,
+    create_directory_privileged,
+    is_directory_empty,
+    render_index_html,
+    write_index_html,
 )
 
 app = typer.Typer(help="VHost Helper: Unified virtual host management.")
@@ -209,6 +229,46 @@ def create(
         "--ssl-dir",
         help="Directory to store SSL certificates (overrides VHOST_SSL_DIR env var)",
     ),
+    webroot_user: Optional[str] = typer.Option(
+        None,
+        "--webroot-user",
+        help="Override the owner applied by chown (default: current login user)",
+    ),
+    webroot_group: Optional[str] = typer.Option(
+        None,
+        "--webroot-group",
+        help="Override the group applied by chown (default: resolved web server group)",
+    ),
+    webroot_perms: Optional[str] = typer.Option(
+        None,
+        "--webroot-perms",
+        help="Override directory and file permission modes. Format: '<dir_mode>:<file_mode>' (e.g. '755:644')",
+    ),
+    skip_permissions: bool = typer.Option(
+        False,
+        "--skip-permissions",
+        help="Skip all webroot permission and SELinux hardening steps",
+    ),
+    create_dir: bool = typer.Option(
+        False,
+        "--create-dir",
+        help="Create the document root directory if it does not exist (no prompt)",
+    ),
+    no_create_dir: bool = typer.Option(
+        False,
+        "--no-create-dir",
+        help="Abort if the document root does not exist; never create it",
+    ),
+    scaffold: bool = typer.Option(
+        False,
+        "--scaffold",
+        help="Generate a starter index.html in an empty document root (no prompt)",
+    ),
+    no_scaffold: bool = typer.Option(
+        False,
+        "--no-scaffold",
+        help="Never generate an index.html, even after creating the document root",
+    ),
 ):
     """Provision a new virtual host."""
     try:
@@ -217,12 +277,58 @@ def create(
         console.print(f"[red]✖[/red] {e}")
         raise typer.Exit(code=1)
 
+    # --skip-permissions mutual exclusivity check
+    if skip_permissions and any(
+        v is not None for v in [webroot_user, webroot_group, webroot_perms]
+    ):
+        console.print(
+            "[red]✖[/red] Error: --skip-permissions is mutually exclusive with "
+            "--webroot-user, --webroot-group, and --webroot-perms."
+        )
+        raise typer.Exit(code=1)
+
+    # Validate --webroot-perms format before any filesystem changes
+    resolved_dir_mode = "755"
+    resolved_file_mode = "644"
+    if webroot_perms is not None:
+        try:
+            resolved_dir_mode, resolved_file_mode = validate_webroot_perms(webroot_perms)
+        except ValueError as e:
+            console.print(f"[red]✖[/red] {e}")
+            raise typer.Exit(code=1)
+
+    # Validate --webroot-user / --webroot-group before any filesystem changes
+    if webroot_user is not None:
+        try:
+            webroot_user = validate_unix_name(webroot_user, "--webroot-user")
+        except ValueError as e:
+            console.print(f"[red]✖[/red] {e}")
+            raise typer.Exit(code=1)
+    if webroot_group is not None:
+        try:
+            webroot_group = validate_unix_name(webroot_group, "--webroot-group")
+        except ValueError as e:
+            console.print(f"[red]✖[/red] {e}")
+            raise typer.Exit(code=1)
+
     # Mutual exclusivity guard — must happen before any system writes.
     php_requested = php is not None
     active_flags = sum([php_requested, python, nodejs, runtime_opt is not None])
     if active_flags > 1:
         console.print(
             "[red]✖[/red] Error: --php, --python, --nodejs, and --runtime are mutually exclusive."
+        )
+        raise typer.Exit(code=1)
+
+    # Scaffolding flag mutual exclusivity guards
+    if create_dir and no_create_dir:
+        console.print(
+            "[red]✖[/red] Error: --create-dir and --no-create-dir are mutually exclusive."
+        )
+        raise typer.Exit(code=1)
+    if scaffold and no_scaffold:
+        console.print(
+            "[red]✖[/red] Error: --scaffold and --no-scaffold are mutually exclusive."
         )
         raise typer.Exit(code=1)
 
@@ -253,12 +359,80 @@ def create(
         service_running = is_apache_running()
         server_name = "Apache"
 
-    # 1. Validation
+    # Resolve user/group early so both directory creation and index.html use it.
+    # Must use detected_os_family (canonical "rhel_family"/"debian_family") — NOT
+    # get_os_info().family which returns short forms ("rhel"/"debian") that do not
+    # match the lookup table keys in permissions.py.
+    from .config import detected_os_family as _detected_os_family_early
+    _effective_user = webroot_user or get_current_user()
+    _effective_group = webroot_group or resolve_webserver_user_group(
+        _detected_os_family_early, server_type
+    )[1]
+
+    # 1. Document root existence check — create interactively or via flags.
+    dir_was_created = False
     if not document_root.exists():
+        if no_create_dir:
+            console.print(
+                f"  [red]✖[/red] Document root '[cyan]{document_root}[/cyan]' does not exist.",
+            )
+            raise typer.Exit(code=1)
+
+        if create_dir:
+            do_create = True
+        elif _is_tty():
+            do_create = typer.confirm(
+                f"  Directory '{document_root}' does not exist. Create it?",
+                default=True,
+            )
+        else:
+            # Non-TTY with no explicit flag: auto-create (safe default for pipelines)
+            do_create = True
+
+        if do_create:
+            preflight_sudo_check()
+            try:
+                create_directory_privileged(
+                    document_root.absolute(), _effective_user, _effective_group
+                )
+                dir_was_created = True
+                console.print(
+                    f"  [green]✔[/green] Directory '{document_root}' created "
+                    f"({_effective_user}:{_effective_group}, 755)"
+                )
+            except RuntimeError as dir_err:
+                from rich.panel import Panel as _Panel
+                console.print(
+                    _Panel(
+                        str(dir_err),
+                        title="Directory Creation Failed",
+                        style="red",
+                    )
+                )
+                raise typer.Exit(code=1)
+        else:
+            console.print("  [yellow]⊘[/yellow] Directory creation declined. Aborting.")
+            raise typer.Exit(code=0)
+
+    elif not document_root.is_dir():
         console.print(
-            f"  [red]✖[/red] Error: Document root [cyan]{document_root}[/cyan] does not exist."
+            f"  [red]✖[/red] Error: '[cyan]{document_root}[/cyan]' exists but is not a directory."
         )
         raise typer.Exit(code=1)
+
+    # 2. Scaffolding prompt — determine whether to generate index.html.
+    should_scaffold = False
+    if not no_scaffold:
+        dir_is_empty = dir_was_created or is_directory_empty(document_root)
+        if dir_is_empty:
+            if scaffold:
+                should_scaffold = True
+            elif _is_tty():
+                should_scaffold = typer.confirm(
+                    "  Generate an index.html so you can test it immediately?",
+                    default=True,
+                )
+            # Non-TTY with no --scaffold flag: safe default = do not scaffold
 
     # Warm the sudo credentials cache
     preflight_sudo_check()
@@ -309,6 +483,8 @@ def create(
         php_socket = None
 
     hostfile_updated = False
+    vhost_created = False
+    provider_instance_ref = None
 
     try:
         # 1.5a. Generate SSL certificate if requested (before Pydantic validation
@@ -355,10 +531,12 @@ def create(
 
         # 3. Create vhost
         provider_instance = _get_provider(server_type)
+        provider_instance_ref = provider_instance
         with _tracked_status(
             f"[bold green]Configuring {server_name}...", spinner="dots"
         ):
             provider_instance.create_vhost(config, service_running=service_running)
+        vhost_created = True
 
         console.print(f"  [green]✔[/green] {server_name} configuration generated")
         if server_type == ServerType.NGINX or (
@@ -370,6 +548,69 @@ def create(
         # 4. PHP-FPM service orchestration (non-blocking)
         if php_socket is not None:
             _orchestrate_php_fpm_service(php_fpm_version, console)
+
+        # 5. Webroot permissions (steps 6–7 from authoritative workflow)
+        if not skip_permissions:
+            # Use detected_os_family (from config.py / detect_os_family()) which
+            # returns the canonical "rhel_family" / "debian_family" strings that
+            # resolve_webserver_user_group() and the SELinux gate expect.
+            # get_os_info() returns short forms like "rhel" / "debian" which do
+            # NOT match the lookup table keys, causing a fallback to www-data.
+            from .config import detected_os_family as _detected_os_family
+            os_family = _detected_os_family
+
+            effective_user = webroot_user or get_current_user()
+            effective_group = webroot_group or resolve_webserver_user_group(
+                os_family, server_type
+            )[1]
+
+            with _tracked_status(
+                "[bold green]Applying webroot permissions...", spinner="dots"
+            ):
+                apply_webroot_permissions(
+                    document_root.absolute(),
+                    effective_user,
+                    effective_group,
+                    dir_mode=resolved_dir_mode,
+                    file_mode=resolved_file_mode,
+                )
+            console.print(
+                f"  [green]✔[/green] Webroot permissions set "
+                f"({effective_user}:{effective_group}, dirs={resolved_dir_mode}, files={resolved_file_mode}, SetGID)"
+            )
+
+            # 6. SELinux context hardening (RHEL/Fedora only)
+            if os_family == "rhel_family" and is_selinux_active():
+                with _tracked_status(
+                    "[bold green]Applying SELinux context...", spinner="dots"
+                ):
+                    apply_selinux_webroot_context(document_root.absolute())
+                console.print(
+                    "  [green]✔[/green] SELinux context applied (httpd_sys_content_t)"
+                )
+
+        # 7. Generate index.html if the user confirmed scaffolding.
+        if should_scaffold:
+            try:
+                html_content = render_index_html(
+                    domain=domain,
+                    provider=server_type.value,
+                    document_root=str(document_root.absolute()),
+                )
+                write_index_html(
+                    content=html_content,
+                    dest_path=document_root.absolute() / "index.html",
+                    user=_effective_user,
+                    group=_effective_group,
+                )
+                console.print(
+                    f"  [green]✔[/green] index.html generated "
+                    f"({document_root.absolute() / 'index.html'})"
+                )
+            except Exception as scaffold_err:
+                console.print(
+                    f"  [yellow]⚠[/yellow] Could not generate index.html: {scaffold_err}"
+                )
 
         if service_running:
             console.print(f"  [green]✔[/green] {server_name} configuration valid")
@@ -394,6 +635,17 @@ def create(
             )
 
     except Exception as e:
+        if vhost_created and provider_instance_ref is not None:
+            try:
+                provider_instance_ref.remove_vhost(domain, service_running=False)
+                console.print(
+                    "  [yellow]↪[/yellow] Rollback: Vhost configuration removed due to failure."
+                )
+            except Exception as rollback_err:
+                console.print(
+                    f"  [red]✖[/red] Error during vhost rollback: {rollback_err}"
+                )
+
         if hostfile_updated:
             try:
                 remove_entry(domain)
@@ -426,8 +678,8 @@ def _resolve_php_socket(php_version: Optional[str] = None) -> Optional[str]:
         (error already printed to the console by this function).
     """
     try:
-        os_info = get_os_info()
-        os_family = os_info.family
+        from .config import detected_os_family as _php_os_family
+        os_family = _php_os_family
     except Exception:
         os_family = "debian_family"
 
@@ -467,8 +719,8 @@ def _orchestrate_php_fpm_service(
         _console: Rich console instance for output.
     """
     try:
-        os_info = get_os_info()
-        os_family = os_info.family
+        from .config import detected_os_family as _svc_os_family
+        os_family = _svc_os_family
     except Exception:
         os_family = "debian_family"
 
@@ -482,7 +734,7 @@ def _orchestrate_php_fpm_service(
     if warning:
         _console.print(
             Panel(
-                warning,
+                str(warning),
                 title="PHP-FPM Service Warning",
                 style="yellow",
             )
@@ -1087,6 +1339,111 @@ def templates_inspect(
         table.add_row(var, description, default)
 
     console.print(table)
+
+
+@app.command()
+def logs(
+    domain: str = typer.Argument(..., help="The domain name to tail logs for"),
+    provider: Optional[ServerType] = typer.Option(
+        None, "--provider", "-p", help="Web server provider (nginx or apache)"
+    ),
+    error: bool = typer.Option(False, "--error", help="Tail only the error log"),
+    access: bool = typer.Option(False, "--access", help="Tail only the access log"),
+):
+    """Tail live log files for a virtual host."""
+    if error and access:
+        console.print(
+            "[red]✖[/red] Error: --error and --access are mutually exclusive. "
+            "Use one flag at a time."
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        domain = validate_domain(domain)
+    except ValueError as e:
+        console.print(f"[red]✖[/red] {e}")
+        raise typer.Exit(code=1)
+
+    # Determine provider (reuses existing auto-detection cascade)
+    if provider is None:
+        server_type = _detect_provider_for_domain(domain)
+        if server_type is None:
+            console.print(
+                f"[red]✖[/red] Error: VHost not found or disabled: '{domain}'"
+            )
+            raise typer.Exit(code=1)
+    else:
+        server_type = provider
+
+    # Determine the enabled-sites path for this provider/domain
+    if server_type == ServerType.NGINX:
+        enabled_path = NGINX_SITES_ENABLED / (domain + ".conf")
+    else:
+        enabled_path = APACHE_SITES_ENABLED / (domain + ".conf")
+
+    # F4 Step 1: VHost enabled check
+    if not enabled_path.exists() and not enabled_path.is_symlink():
+        console.print(
+            f"[red]✖[/red] Error: VHost not found or disabled: '{domain}'"
+        )
+        raise typer.Exit(code=1)
+
+    # Read config — resolve symlink so we always get real file content
+    try:
+        config_file = enabled_path.resolve()
+        config_content = config_file.read_text()
+    except (PermissionError, OSError) as e:
+        console.print(f"[red]✖[/red] Error reading configuration: {e}")
+        raise typer.Exit(code=1)
+
+    # F4 Step 2: Extract log paths from configuration
+    if server_type == ServerType.NGINX:
+        access_log_path, error_log_path = extract_nginx_log_paths(config_content)
+    else:
+        access_log_path, error_log_path = extract_apache_log_paths(config_content)
+
+    # Determine which paths to tail based on flags
+    if error:
+        if error_log_path is None:
+            console.print(
+                f"[red]✖[/red] Error: No log paths found in configuration for '{domain}'"
+            )
+            raise typer.Exit(code=1)
+        paths_to_tail = [error_log_path]
+    elif access:
+        if access_log_path is None:
+            console.print(
+                f"[red]✖[/red] Error: No log paths found in configuration for '{domain}'"
+            )
+            raise typer.Exit(code=1)
+        paths_to_tail = [access_log_path]
+    else:
+        if access_log_path is None and error_log_path is None:
+            console.print(
+                f"[red]✖[/red] Error: No log paths found in configuration for '{domain}'"
+            )
+            raise typer.Exit(code=1)
+        paths_to_tail = [p for p in [access_log_path, error_log_path] if p is not None]
+
+    # F4 Step 3: Filesystem existence check
+    for path in paths_to_tail:
+        if not os.path.isfile(path):
+            console.print(f"[red]✖[/red] Error: Log file not found at '{path}'")
+            raise typer.Exit(code=1)
+
+    # F5: Resolve tail binary and launch
+    tail_bin = shutil.which("tail")
+    if tail_bin is None:
+        console.print("[red]✖[/red] Error: 'tail' binary not found on PATH")
+        raise typer.Exit(code=1)
+
+    cmd = [tail_bin, "-f"] + paths_to_tail
+    try:
+        proc = subprocess.Popen(cmd, shell=False)
+        proc.wait()
+    except KeyboardInterrupt:
+        proc.terminate()
+        raise typer.Exit(code=0)
 
 
 def _normalize_php_argv(argv: list) -> list:
