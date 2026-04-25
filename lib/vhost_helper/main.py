@@ -557,6 +557,29 @@ def create(
         if php_socket is not None:
             _orchestrate_php_fpm_service(php_fpm_version, console)
 
+        # 7. Generate index.html if the user confirmed scaffolding.
+        if should_scaffold:
+            try:
+                html_content = render_index_html(
+                    domain=domain,
+                    provider=server_type.value,
+                    document_root=str(document_root.absolute()),
+                )
+                write_index_html(
+                    content=html_content,
+                    dest_path=document_root.absolute() / "index.html",
+                    user=_effective_user,
+                    group=_effective_group,
+                )
+                console.print(
+                    f"  [green]✔[/green] index.html generated "
+                    f"({document_root.absolute() / 'index.html'})"
+                )
+            except Exception as scaffold_err:
+                console.print(
+                    f"  [yellow]⚠[/yellow] Could not generate index.html: {scaffold_err}"
+                )
+
         # 5. Webroot permissions (steps 6–7 from authoritative workflow)
         if not skip_permissions:
             try:
@@ -595,29 +618,6 @@ def create(
                     apply_selinux_webroot_context(document_root.absolute())
                 console.print(
                     "  [green]✔[/green] SELinux context applied (httpd_sys_content_t)"
-                )
-
-        # 7. Generate index.html if the user confirmed scaffolding.
-        if should_scaffold:
-            try:
-                html_content = render_index_html(
-                    domain=domain,
-                    provider=server_type.value,
-                    document_root=str(document_root.absolute()),
-                )
-                write_index_html(
-                    content=html_content,
-                    dest_path=document_root.absolute() / "index.html",
-                    user=_effective_user,
-                    group=_effective_group,
-                )
-                console.print(
-                    f"  [green]✔[/green] index.html generated "
-                    f"({document_root.absolute() / 'index.html'})"
-                )
-            except Exception as scaffold_err:
-                console.print(
-                    f"  [yellow]⚠[/yellow] Could not generate index.html: {scaffold_err}"
                 )
 
         if service_running:

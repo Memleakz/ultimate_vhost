@@ -369,3 +369,60 @@ def test_non_tty_flags_match_interactive_yy_output(nginx_env, mocker):
     ):
         assert expected in html_from_flags, f"flags output missing: {expected}"
         assert expected in html_from_tty, f"tty output missing: {expected}"
+
+
+def test_scaffolding_order_before_permissions(nginx_env, mocker):
+    """
+    Ensures that write_index_html is invoked BEFORE apply_webroot_permissions
+    and apply_selinux_webroot_context to avoid implementational permission leaks.
+    """
+    doc = nginx_env / "order-site"
+    doc.mkdir()
+
+    call_order = []
+
+    def record_write(*args, **kwargs):
+        call_order.append("write_index_html")
+
+    def record_perms(*args, **kwargs):
+        call_order.append("apply_webroot_permissions")
+
+    def record_selinux(*args, **kwargs):
+        call_order.append("apply_selinux_webroot_context")
+
+    mocker.patch("vhost_helper.main.write_index_html", side_effect=record_write)
+    mocker.patch(
+        "vhost_helper.main.apply_webroot_permissions", side_effect=record_perms
+    )
+    mocker.patch(
+        "vhost_helper.main.apply_selinux_webroot_context",
+        side_effect=record_selinux,
+    )
+    mocker.patch("vhost_helper.main.is_selinux_active", return_value=True)
+    mocker.patch(
+        "vhost_helper.main.get_os_info",
+        return_value=mocker.MagicMock(family="rhel_family"),
+    )
+    mocker.patch("vhost_helper.main._is_tty", return_value=False)
+
+    result = runner.invoke(
+        app,
+        ["create", "app.test", str(doc), "--provider", "nginx", "--scaffold"],
+    )
+    assert result.exit_code == 0
+
+    assert "write_index_html" in call_order
+    assert "apply_webroot_permissions" in call_order
+    assert "apply_selinux_webroot_context" in call_order
+
+    # Verify that write_index_html is BEFORE apply_webroot_permissions
+    idx_write = call_order.index("write_index_html")
+    idx_perms = call_order.index("apply_webroot_permissions")
+    idx_selinux = call_order.index("apply_selinux_webroot_context")
+
+    assert (
+        idx_write < idx_perms
+    ), "write_index_html should run before apply_webroot_permissions"
+    assert (
+        idx_write < idx_selinux
+    ), "write_index_html should run before apply_selinux_webroot_context"
