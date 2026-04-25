@@ -93,20 +93,6 @@
         <h1>It works!</h1>
         <p class="domain">{{ domain | default('localhost') }}</p>
 
-        <div class="info-grid">
-            {% if document_root %}
-            <div class="info-item">
-                <div class="info-label">Document Root</div>
-                <div class="info-value">{{ document_root }}</div>
-            </div>
-            {% endif %}
-            {% if provider %}
-            <div class="info-item">
-                <div class="info-label">Web Server</div>
-                <div class="info-value">{{ provider | capitalize }}</div>
-            </div>
-            {% endif %}
-        </div>
 
         <footer>
             Powered by {{ tool_name | default('ultimate_vhost') }}{% if tool_version %} {{ tool_version }}{% endif %}
