@@ -19,9 +19,11 @@ from typer.testing import CliRunner
 from vhost_helper.logs import extract_nginx_log_paths, extract_apache_log_paths
 from vhost_helper.main import app
 
+
 def strip_ansi(text):
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    return ansi_escape.sub('', text)
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    return ansi_escape.sub("", text)
+
 
 runner = CliRunner()
 
