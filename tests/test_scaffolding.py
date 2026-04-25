@@ -13,7 +13,6 @@ import pytest
 from typer.testing import CliRunner
 from vhost_helper.main import app
 from vhost_helper.scaffolding import render_index_html, is_directory_empty
-import vhost_helper.providers.nginx
 
 runner = CliRunner()
 
@@ -219,9 +218,7 @@ def test_create_dir_and_scaffold_flags_no_prompts(mock_nginx_env, mocker):
     def _make_dir(path, user, group):
         path.mkdir(parents=True, exist_ok=True)
 
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
     mock_write = mocker.patch("vhost_helper.main.write_index_html")
     mocker.patch("vhost_helper.main._is_tty", return_value=False)
 
@@ -253,9 +250,7 @@ def test_interactive_yes_to_dir_yes_to_scaffold(mock_nginx_env, mocker):
     def _make_dir(path, user, group):
         path.mkdir(parents=True, exist_ok=True)
 
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
     mock_write = mocker.patch("vhost_helper.main.write_index_html")
     mocker.patch("vhost_helper.main._is_tty", return_value=True)
 
@@ -281,9 +276,7 @@ def test_interactive_yes_to_dir_no_to_scaffold(mock_nginx_env, mocker):
     def _make_dir(path, user, group):
         path.mkdir(parents=True, exist_ok=True)
 
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
     mock_write = mocker.patch("vhost_helper.main.write_index_html")
     mocker.patch("vhost_helper.main._is_tty", return_value=True)
 
@@ -399,9 +392,7 @@ def test_non_tty_scaffold_flag_generates_html(mock_nginx_env, mocker):
     def _make_dir(path, user, group):
         path.mkdir(parents=True, exist_ok=True)
 
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
     mock_write = mocker.patch("vhost_helper.main.write_index_html")
     mocker.patch("vhost_helper.main._is_tty", return_value=False)
 

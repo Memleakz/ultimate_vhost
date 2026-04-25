@@ -4,9 +4,7 @@ Unit tests for log path extraction functions in ``vhost_helper.logs``.
 All tests are pure — no filesystem or subprocess access.
 """
 
-import pytest
 from vhost_helper.logs import extract_nginx_log_paths, extract_apache_log_paths
-
 
 # ---------------------------------------------------------------------------
 # extract_nginx_log_paths

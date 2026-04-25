@@ -16,7 +16,7 @@ Also: regression test for Panel(str(warning)) bug fix in _orchestrate_php_fpm_se
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
@@ -230,18 +230,14 @@ class TestRemoveCommandWithProvider:
 class TestEnableNoConfigFound:
     def test_enable_no_config_exits_1(self, mocker):
         """When auto-detect finds no config, enable exits 1 with descriptive message."""
-        mocker.patch(
-            "vhost_helper.main._detect_provider_for_domain", return_value=None
-        )
+        mocker.patch("vhost_helper.main._detect_provider_for_domain", return_value=None)
         result = runner.invoke(app, ["enable", "ghost.test"])
         assert result.exit_code == 1
         assert "ghost.test" in result.output or "No configuration" in result.output
 
     def test_disable_no_config_exits_1(self, mocker):
         """When auto-detect finds no config, disable exits 1."""
-        mocker.patch(
-            "vhost_helper.main._detect_provider_for_domain", return_value=None
-        )
+        mocker.patch("vhost_helper.main._detect_provider_for_domain", return_value=None)
         result = runner.invoke(app, ["disable", "ghost.test"])
         assert result.exit_code == 1
 
@@ -279,37 +275,34 @@ class TestTemplateVarsCommand:
 
 class TestNormalizePhpArgv:
     def test_php_without_version_injects_sentinel(self):
-        from vhost_helper.main import _normalize_php_argv, _PHP_AUTO
+        from vhost_helper.main import _PHP_AUTO
 
         result = _normalize_php_argv(["create", "example.test", "/var", "--php"])
         assert "--php" in result
         assert _PHP_AUTO in result
 
     def test_php_with_version_kept_intact(self):
-        from vhost_helper.main import _normalize_php_argv, _PHP_AUTO
+        from vhost_helper.main import _PHP_AUTO
 
-        result = _normalize_php_argv(
-            ["create", "example.test", "/var", "--php", "8.2"]
-        )
+        result = _normalize_php_argv(["create", "example.test", "/var", "--php", "8.2"])
         assert "--php" in result
         assert "8.2" in result
         assert _PHP_AUTO not in result
 
     def test_other_args_passed_through(self):
-        from vhost_helper.main import _normalize_php_argv
 
         argv = ["create", "example.test", "/var", "--python"]
         result = _normalize_php_argv(argv)
         assert result == argv
 
     def test_php_at_end_of_argv(self):
-        from vhost_helper.main import _normalize_php_argv, _PHP_AUTO
+        from vhost_helper.main import _PHP_AUTO
 
         result = _normalize_php_argv(["--php"])
         assert _PHP_AUTO in result
 
     def test_php_followed_by_non_version_string(self):
-        from vhost_helper.main import _normalize_php_argv, _PHP_AUTO
+        from vhost_helper.main import _PHP_AUTO
 
         result = _normalize_php_argv(["--php", "--provider"])
         assert _PHP_AUTO in result
@@ -317,7 +310,7 @@ class TestNormalizePhpArgv:
 
     def test_php_followed_by_partial_version_not_matched(self):
         """e.g. '--php 8' (single digit) should NOT be treated as a version."""
-        from vhost_helper.main import _normalize_php_argv, _PHP_AUTO
+        from vhost_helper.main import _PHP_AUTO
 
         result = _normalize_php_argv(["--php", "8"])
         assert _PHP_AUTO in result
@@ -478,7 +471,6 @@ class TestPhpFpmVersionKey:
         """_version_key ValueError guard: directly call the internal sort to verify it handles non-numeric versions.
         The guard in _version_key is defensive; malformed versions that somehow reach
         the list (e.g. via future code paths) should sort to (0,) rather than crash."""
-        from vhost_helper import php_fpm
 
         # Directly exercise the _version_key closure by patching candidates list
         # We do this by monkeypatching detect_default_version's inner helper
@@ -531,9 +523,7 @@ class TestExtractMetadataYamlUnavailable:
     def test_returns_empty_dict_when_yaml_structure_invalid(self, tmp_path):
         """YAML block present but doesn't contain 'variables' key → {}."""
         tmpl = tmp_path / "bad.conf.j2"
-        tmpl.write_text(
-            "{# ---\nsomething_else: true\n--- #}\n{{ domain }}"
-        )
+        tmpl.write_text("{# ---\nsomething_else: true\n--- #}\n{{ domain }}")
         result = extract_metadata(tmpl)
         assert result == {}
 
@@ -659,9 +649,7 @@ class TestOrchestratePHPFpmPanelRegression:
             "vhost_helper.main.start_service",
             return_value="php8.1-fpm is not running",
         )
-        mocker.patch(
-            "vhost_helper.main.detect_default_version", return_value="8.1"
-        )
+        mocker.patch("vhost_helper.main.detect_default_version", return_value="8.1")
 
         result = runner.invoke(
             app,

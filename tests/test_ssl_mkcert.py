@@ -8,9 +8,8 @@ Covers:
 - CLI integration: --mkcert flag happy path and missing-binary error path
 """
 
-import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 from jinja2 import Environment, FileSystemLoader
@@ -18,7 +17,6 @@ from pydantic import ValidationError
 
 # Adjust sys.path via conftest.py — vhost_helper is importable directly.
 from vhost_helper.ssl import (
-    MKCERT_NOT_FOUND_MSG,
     DEFAULT_SSL_DIR,
     SSL_DIR_ENV_VAR,
     check_mkcert_binary,
@@ -26,8 +24,7 @@ from vhost_helper.ssl import (
     generate_certificate,
     get_ssl_dir,
 )
-from vhost_helper.models import VHostConfig, ServerType, RuntimeMode
-
+from vhost_helper.models import VHostConfig, ServerType
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -464,8 +461,7 @@ class TestApacheTemplateWithSsl:
     def test_ssl_certificate_key_file_present(self, tpl):
         output = _render_apache(tpl, **SSL_CTX)
         assert (
-            "SSLCertificateKeyFile /etc/vhost-helper/ssl/myapp.test-key.pem"
-            in output
+            "SSLCertificateKeyFile /etc/vhost-helper/ssl/myapp.test-key.pem" in output
         )
 
     @pytest.mark.parametrize("tpl", ["default", "static", "nodejs-proxy"])
@@ -540,16 +536,10 @@ class TestNginxProviderSslIntegration:
         )
 
         with (
-            patch(
-                "vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", sites_avail
-            ),
-            patch(
-                "vhost_helper.providers.nginx.NGINX_SITES_ENABLED", sites_enabled
-            ),
+            patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", sites_avail),
+            patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", sites_enabled),
             patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", None),
-            patch(
-                "vhost_helper.providers.nginx.detected_os_family", "debian_family"
-            ),
+            patch("vhost_helper.providers.nginx.detected_os_family", "debian_family"),
             patch(
                 "vhost_helper.providers.nginx.is_selinux_enforcing",
                 return_value=False,
@@ -588,16 +578,10 @@ class TestNginxProviderSslIntegration:
         )
 
         with (
-            patch(
-                "vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", sites_avail
-            ),
-            patch(
-                "vhost_helper.providers.nginx.NGINX_SITES_ENABLED", sites_enabled
-            ),
+            patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", sites_avail),
+            patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", sites_enabled),
             patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", None),
-            patch(
-                "vhost_helper.providers.nginx.detected_os_family", "debian_family"
-            ),
+            patch("vhost_helper.providers.nginx.detected_os_family", "debian_family"),
             patch(
                 "vhost_helper.providers.nginx.is_selinux_enforcing",
                 return_value=False,
@@ -666,16 +650,10 @@ class TestApacheProviderSslIntegration:
         )
 
         with (
-            patch(
-                "vhost_helper.providers.apache.APACHE_SITES_AVAILABLE", sites_avail
-            ),
-            patch(
-                "vhost_helper.providers.apache.APACHE_SITES_ENABLED", sites_enabled
-            ),
+            patch("vhost_helper.providers.apache.APACHE_SITES_AVAILABLE", sites_avail),
+            patch("vhost_helper.providers.apache.APACHE_SITES_ENABLED", sites_enabled),
             patch("vhost_helper.providers.apache.APACHE_SITES_DISABLED", None),
-            patch(
-                "vhost_helper.providers.apache.detected_os_family", "debian_family"
-            ),
+            patch("vhost_helper.providers.apache.detected_os_family", "debian_family"),
             patch(
                 "vhost_helper.providers.apache.is_selinux_enforcing",
                 return_value=False,
@@ -697,6 +675,5 @@ class TestApacheProviderSslIntegration:
         assert "SSLEngine on" in content
         assert "SSLCertificateFile /etc/vhost-helper/ssl/myapp.test.pem" in content
         assert (
-            "SSLCertificateKeyFile /etc/vhost-helper/ssl/myapp.test-key.pem"
-            in content
+            "SSLCertificateKeyFile /etc/vhost-helper/ssl/myapp.test-key.pem" in content
         )

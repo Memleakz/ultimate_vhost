@@ -7,7 +7,6 @@ Nginx and Apache providers, confirming provider-agnostic scaffolding behaviour.
 
 import pytest
 from typer.testing import CliRunner
-from pathlib import Path
 from vhost_helper.main import app
 import vhost_helper.providers.nginx
 import vhost_helper.providers.apache
@@ -100,9 +99,7 @@ def test_nginx_create_dir_and_scaffold_nonexistent_path(nginx_env, mocker):
     def _make_dir(path, user, group):
         path.mkdir(parents=True, exist_ok=True)
 
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
     mock_write = mocker.patch("vhost_helper.main.write_index_html")
     mocker.patch("vhost_helper.main._is_tty", return_value=False)
 
@@ -112,7 +109,8 @@ def test_nginx_create_dir_and_scaffold_nonexistent_path(nginx_env, mocker):
             "create",
             "app.test",
             str(doc),
-            "--provider", "nginx",
+            "--provider",
+            "nginx",
             "--create-dir",
             "--scaffold",
         ],
@@ -144,9 +142,7 @@ def test_nginx_create_dir_with_no_scaffold(nginx_env, mocker):
     def _make_dir(path, user, group):
         path.mkdir(parents=True, exist_ok=True)
 
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
     mock_write = mocker.patch("vhost_helper.main.write_index_html")
     mocker.patch("vhost_helper.main._is_tty", return_value=False)
 
@@ -156,7 +152,8 @@ def test_nginx_create_dir_with_no_scaffold(nginx_env, mocker):
             "create",
             "app.test",
             str(doc),
-            "--provider", "nginx",
+            "--provider",
+            "nginx",
             "--create-dir",
             "--no-scaffold",
         ],
@@ -184,7 +181,8 @@ def test_nginx_existing_empty_dir_scaffold(nginx_env, mocker):
             "create",
             "app.test",
             str(doc),
-            "--provider", "nginx",
+            "--provider",
+            "nginx",
             "--scaffold",
         ],
     )
@@ -231,9 +229,7 @@ def test_apache_create_dir_and_scaffold(apache_env, mocker):
     def _make_dir(path, user, group):
         path.mkdir(parents=True, exist_ok=True)
 
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
     mock_write = mocker.patch("vhost_helper.main.write_index_html")
     mocker.patch("vhost_helper.main._is_tty", return_value=False)
 
@@ -243,7 +239,8 @@ def test_apache_create_dir_and_scaffold(apache_env, mocker):
             "create",
             "app.test",
             str(doc),
-            "--provider", "apache",
+            "--provider",
+            "apache",
             "--create-dir",
             "--scaffold",
         ],
@@ -331,12 +328,8 @@ def test_non_tty_flags_match_interactive_yy_output(nginx_env, mocker):
         path.mkdir(parents=True, exist_ok=True)
 
     # ---- Non-TTY run ----
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
-    mocker.patch(
-        "vhost_helper.main.write_index_html", side_effect=capture_flag
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
+    mocker.patch("vhost_helper.main.write_index_html", side_effect=capture_flag)
     mocker.patch("vhost_helper.main._is_tty", return_value=False)
 
     result1 = runner.invoke(
@@ -352,12 +345,8 @@ def test_non_tty_flags_match_interactive_yy_output(nginx_env, mocker):
     assert result1.exit_code == 0
 
     # ---- TTY run ----
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
-    mocker.patch(
-        "vhost_helper.main.write_index_html", side_effect=capture_tty
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
+    mocker.patch("vhost_helper.main.write_index_html", side_effect=capture_tty)
     mocker.patch("vhost_helper.main._is_tty", return_value=True)
 
     result2 = runner.invoke(
@@ -372,6 +361,11 @@ def test_non_tty_flags_match_interactive_yy_output(nginx_env, mocker):
     assert html_from_tty is not None
     # The rendered HTML is structurally identical except for the document_root
     # path that is embedded in the info grid; assert all key invariants match.
-    for expected in ("It works!", "Powered by ultimate_vhost", "app.test", "<!DOCTYPE html>"):
+    for expected in (
+        "It works!",
+        "Powered by ultimate_vhost",
+        "app.test",
+        "<!DOCTYPE html>",
+    ):
         assert expected in html_from_flags, f"flags output missing: {expected}"
         assert expected in html_from_tty, f"tty output missing: {expected}"

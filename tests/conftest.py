@@ -24,6 +24,7 @@ def _auto_mock_permissions(request, mocker):
 
     # Mock low-level utility functions globally to prevent sudo prompts
     import subprocess
+
     mocker.patch("vhost_helper.utils.preflight_sudo_check")
     mocker.patch("vhost_helper.utils.get_sudo_prefix", return_value=[])
     mocker.patch(
@@ -40,7 +41,10 @@ def _auto_mock_permissions(request, mocker):
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=False)
     mocker.patch("vhost_helper.main.start_service", return_value=None)
     mocker.patch("vhost_helper.main.check_mkcert_binary")
-    mocker.patch("vhost_helper.main.generate_certificate", return_value=("/tmp/cert.pem", "/tmp/key.pem"))
+    mocker.patch(
+        "vhost_helper.main.generate_certificate",
+        return_value=("/tmp/cert.pem", "/tmp/key.pem"),
+    )
     mocker.patch(
         "vhost_helper.main.get_os_info",
         return_value=type("OSInfo", (), {"family": "debian_family"})(),

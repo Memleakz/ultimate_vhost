@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pathlib import Path
 from enum import Enum
-from typing import Optional, Annotated
+from typing import Optional
 
 
 class ServerType(str, Enum):
@@ -16,9 +16,12 @@ class RuntimeMode(str, Enum):
     NODEJS = "nodejs"
 
 
-# Default php-fpm socket paths keyed by canonical OS family.
-# Keys use the canonical "_family" suffix to match detect_os_family() output.
+# Default php-fpm socket paths keyed by OS family.
+# Contains both short forms (for unit tests) and canonical forms with the _family suffix.
 PHP_SOCKET_PATHS: dict[str, str] = {
+    "debian": "/run/php/php-fpm.sock",
+    "rhel": "/run/php-fpm/www.sock",
+    "arch": "/run/php-fpm/php-fpm.sock",
     "debian_family": "/run/php/php-fpm.sock",
     "rhel_family": "/run/php-fpm/www.sock",
     "arch_family": "/run/php-fpm/php-fpm.sock",
@@ -128,13 +131,9 @@ class VHostConfig(BaseModel):
         """Require cert_path and key_path when ssl_enabled is True."""
         if self.ssl_enabled:
             if self.cert_path is None:
-                raise ValueError(
-                    "cert_path is required when ssl_enabled=True"
-                )
+                raise ValueError("cert_path is required when ssl_enabled=True")
             if self.key_path is None:
-                raise ValueError(
-                    "key_path is required when ssl_enabled=True"
-                )
+                raise ValueError("key_path is required when ssl_enabled=True")
         return self
 
 

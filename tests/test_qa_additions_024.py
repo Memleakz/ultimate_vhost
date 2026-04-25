@@ -16,11 +16,8 @@ Covers gaps not addressed by the implementation's own test suite:
   - Non-TTY auto-create prints creation confirmation
 """
 
-import os
 import subprocess
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
 
 import pytest
 from typer.testing import CliRunner
@@ -28,12 +25,10 @@ from typer.testing import CliRunner
 from vhost_helper.main import app
 from vhost_helper.scaffolding import (
     _is_tty,
-    create_directory_privileged,
     is_directory_empty,
     render_index_html,
     write_index_html,
 )
-import vhost_helper.providers.nginx
 
 runner = CliRunner()
 
@@ -77,6 +72,7 @@ def test_is_tty_returns_bool():
 def test_is_tty_reflects_stdin_isatty(mocker):
     mocker.patch("sys.stdin")
     import sys
+
     sys.stdin.isatty.return_value = True
     assert _is_tty() is True
 
@@ -200,6 +196,7 @@ def test_write_index_html_calls_chown_and_chmod(mocker, tmp_path):
         # For mv: actually copy the file so dest_path exists for chown/chmod
         if "mv" in cmd:
             import shutil
+
             shutil.copy(cmd[-2], cmd[-1])
 
     mocker.patch("vhost_helper.scaffolding.get_sudo_prefix", return_value=[])
@@ -247,7 +244,10 @@ def test_create_dir_privileged_error_is_reported_to_user(nginx_env, mocker):
         ["create", "mysite.test", str(doc), "--create-dir"],
     )
     assert result.exit_code == 1
-    assert "Directory Creation Failed" in result.stdout or "Permission denied" in result.stdout
+    assert (
+        "Directory Creation Failed" in result.stdout
+        or "Permission denied" in result.stdout
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +313,9 @@ def test_scaffold_write_failure_logged_as_warning_not_fatal(nginx_env, mocker):
     )
     assert result.exit_code == 0
     # Warning must be printed to stdout
-    assert "Could not generate index.html" in result.stdout or "disk full" in result.stdout
+    assert (
+        "Could not generate index.html" in result.stdout or "disk full" in result.stdout
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -354,9 +356,7 @@ def test_non_tty_auto_create_prints_confirmation(nginx_env, mocker):
     def _make_dir(path, user, group):
         path.mkdir(parents=True, exist_ok=True)
 
-    mocker.patch(
-        "vhost_helper.main.create_directory_privileged", side_effect=_make_dir
-    )
+    mocker.patch("vhost_helper.main.create_directory_privileged", side_effect=_make_dir)
     mocker.patch("vhost_helper.main.write_index_html")
     mocker.patch("vhost_helper.main._is_tty", return_value=False)
 

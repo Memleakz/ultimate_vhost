@@ -347,7 +347,9 @@ def test_cli_mutual_exclusivity_writes_no_files(tmp_nginx_dirs, doc_root, mocker
     available, enabled, _ = tmp_nginx_dirs
     mocker.patch("vhost_helper.main.is_nginx_installed", return_value=True)
     mocker.patch("vhost_helper.main.add_entry")
-    runner.invoke(app, ["create", "example.test", str(doc_root), "--php", "__auto__", "--python"])
+    runner.invoke(
+        app, ["create", "example.test", str(doc_root), "--php", "__auto__", "--python"]
+    )
     assert not list(
         available.iterdir()
     ), "No config file should be written on mutual exclusion error"

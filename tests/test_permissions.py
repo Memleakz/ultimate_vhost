@@ -171,29 +171,81 @@ class TestApplyWebrootPermissions:
         assert calls[0] == call(["chown", "-R", "alice:www-data", "/var/www/mysite"])
         # 2. chmod dirs
         assert calls[1] == call(
-            ["find", "/var/www/mysite", "-type", "d", "-exec", "chmod", "755", "{}", "+"]
+            [
+                "find",
+                "/var/www/mysite",
+                "-type",
+                "d",
+                "-exec",
+                "chmod",
+                "755",
+                "{}",
+                "+",
+            ]
         )
         # 3. chmod files
         assert calls[2] == call(
-            ["find", "/var/www/mysite", "-type", "f", "-exec", "chmod", "644", "{}", "+"]
+            [
+                "find",
+                "/var/www/mysite",
+                "-type",
+                "f",
+                "-exec",
+                "chmod",
+                "644",
+                "{}",
+                "+",
+            ]
         )
         # 4. SetGID
         assert calls[3] == call(
-            ["find", "/var/www/mysite", "-type", "d", "-exec", "chmod", "g+s", "{}", "+"]
+            [
+                "find",
+                "/var/www/mysite",
+                "-type",
+                "d",
+                "-exec",
+                "chmod",
+                "g+s",
+                "{}",
+                "+",
+            ]
         )
 
     @patch("vhost_helper.permissions.run_elevated_command")
     @patch("vhost_helper.permissions.get_sudo_prefix", return_value=[])
     def test_custom_modes_passed_correctly(self, mock_sudo, mock_run):
         path = Path("/var/www/restricted")
-        apply_webroot_permissions(path, "bob", "apache", dir_mode="750", file_mode="640")
+        apply_webroot_permissions(
+            path, "bob", "apache", dir_mode="750", file_mode="640"
+        )
 
         calls = mock_run.call_args_list
         assert calls[1] == call(
-            ["find", "/var/www/restricted", "-type", "d", "-exec", "chmod", "750", "{}", "+"]
+            [
+                "find",
+                "/var/www/restricted",
+                "-type",
+                "d",
+                "-exec",
+                "chmod",
+                "750",
+                "{}",
+                "+",
+            ]
         )
         assert calls[2] == call(
-            ["find", "/var/www/restricted", "-type", "f", "-exec", "chmod", "640", "{}", "+"]
+            [
+                "find",
+                "/var/www/restricted",
+                "-type",
+                "f",
+                "-exec",
+                "chmod",
+                "640",
+                "{}",
+                "+",
+            ]
         )
 
     @patch(
@@ -247,9 +299,7 @@ class TestIsSelinuxActive:
         mock_run.return_value = MagicMock(stdout="", returncode=1)
         assert is_selinux_active() is False
 
-    @patch(
-        "subprocess.run", side_effect=Exception("unexpected")
-    )
+    @patch("subprocess.run", side_effect=Exception("unexpected"))
     @patch("shutil.which", return_value="/usr/sbin/getenforce")
     def test_returns_false_on_exception(self, mock_which, mock_run):
         assert is_selinux_active() is False
@@ -379,10 +429,13 @@ def test_create_applies_permissions_by_default(mock_create_setup, mocker):
     mock_apply = mocker.patch("vhost_helper.main.apply_webroot_permissions")
     mocker.patch("vhost_helper.main.get_current_user", return_value="alice")
     mocker.patch(
-        "vhost_helper.main.resolve_webserver_user_group", return_value=("nginx", "nginx")
+        "vhost_helper.main.resolve_webserver_user_group",
+        return_value=("nginx", "nginx"),
     )
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=False)
-    mocker.patch("vhost_helper.main.get_os_info", return_value=MagicMock(family="debian_family"))
+    mocker.patch(
+        "vhost_helper.main.get_os_info", return_value=MagicMock(family="debian_family")
+    )
 
     result = runner.invoke(app, ["create", "test.local", str(doc_root)])
     assert result.exit_code == 0
@@ -430,7 +483,9 @@ def test_create_skip_permissions_with_webroot_user_exits_1(mock_create_setup, tm
     assert "mutually exclusive" in result.stdout
 
 
-def test_create_skip_permissions_with_webroot_group_exits_1(mock_create_setup, tmp_path):
+def test_create_skip_permissions_with_webroot_group_exits_1(
+    mock_create_setup, tmp_path
+):
     """--skip-permissions + --webroot-group must fail with exit code 1."""
     _, _, _ = mock_create_setup
     doc_root = tmp_path / "www"
@@ -451,7 +506,9 @@ def test_create_skip_permissions_with_webroot_group_exits_1(mock_create_setup, t
     assert "mutually exclusive" in result.stdout
 
 
-def test_create_skip_permissions_with_webroot_perms_exits_1(mock_create_setup, tmp_path):
+def test_create_skip_permissions_with_webroot_perms_exits_1(
+    mock_create_setup, tmp_path
+):
     """--skip-permissions + --webroot-perms must fail with exit code 1."""
     _, _, _ = mock_create_setup
     doc_root = tmp_path / "www"
@@ -495,7 +552,8 @@ def test_create_webroot_perms_override_applied(mock_create_setup, mocker, tmp_pa
     mock_apply = mocker.patch("vhost_helper.main.apply_webroot_permissions")
     mocker.patch("vhost_helper.main.get_current_user", return_value="alice")
     mocker.patch(
-        "vhost_helper.main.resolve_webserver_user_group", return_value=("www-data", "www-data")
+        "vhost_helper.main.resolve_webserver_user_group",
+        return_value=("www-data", "www-data"),
     )
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=False)
     mocker.patch(
@@ -520,7 +578,8 @@ def test_create_webroot_user_override(mock_create_setup, mocker, tmp_path):
 
     mock_apply = mocker.patch("vhost_helper.main.apply_webroot_permissions")
     mocker.patch(
-        "vhost_helper.main.resolve_webserver_user_group", return_value=("www-data", "www-data")
+        "vhost_helper.main.resolve_webserver_user_group",
+        return_value=("www-data", "www-data"),
     )
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=False)
     mocker.patch(
@@ -569,7 +628,8 @@ def test_create_selinux_applied_on_rhel_with_active_selinux(
     mocker.patch("vhost_helper.main.apply_webroot_permissions")
     mocker.patch("vhost_helper.main.get_current_user", return_value="alice")
     mocker.patch(
-        "vhost_helper.main.resolve_webserver_user_group", return_value=("nginx", "nginx")
+        "vhost_helper.main.resolve_webserver_user_group",
+        return_value=("nginx", "nginx"),
     )
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=True)
     mocker.patch(
@@ -591,7 +651,8 @@ def test_create_selinux_not_applied_on_debian(mock_create_setup, mocker, tmp_pat
     mocker.patch("vhost_helper.main.apply_webroot_permissions")
     mocker.patch("vhost_helper.main.get_current_user", return_value="alice")
     mocker.patch(
-        "vhost_helper.main.resolve_webserver_user_group", return_value=("www-data", "www-data")
+        "vhost_helper.main.resolve_webserver_user_group",
+        return_value=("www-data", "www-data"),
     )
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=True)
     mocker.patch(
@@ -615,7 +676,8 @@ def test_create_selinux_not_applied_when_selinux_disabled(
     mocker.patch("vhost_helper.main.apply_webroot_permissions")
     mocker.patch("vhost_helper.main.get_current_user", return_value="alice")
     mocker.patch(
-        "vhost_helper.main.resolve_webserver_user_group", return_value=("nginx", "nginx")
+        "vhost_helper.main.resolve_webserver_user_group",
+        return_value=("nginx", "nginx"),
     )
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=False)
     mocker.patch(
@@ -640,7 +702,8 @@ def test_permission_failure_triggers_rollback(mock_create_setup, mocker, tmp_pat
     )
     mocker.patch("vhost_helper.main.get_current_user", return_value="alice")
     mocker.patch(
-        "vhost_helper.main.resolve_webserver_user_group", return_value=("www-data", "www-data")
+        "vhost_helper.main.resolve_webserver_user_group",
+        return_value=("www-data", "www-data"),
     )
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=False)
     mocker.patch(
@@ -668,7 +731,8 @@ def test_selinux_failure_triggers_rollback(mock_create_setup, mocker, tmp_path):
     mocker.patch("vhost_helper.main.apply_webroot_permissions")
     mocker.patch("vhost_helper.main.get_current_user", return_value="alice")
     mocker.patch(
-        "vhost_helper.main.resolve_webserver_user_group", return_value=("nginx", "nginx")
+        "vhost_helper.main.resolve_webserver_user_group",
+        return_value=("nginx", "nginx"),
     )
     mocker.patch("vhost_helper.main.is_selinux_active", return_value=True)
     mocker.patch(

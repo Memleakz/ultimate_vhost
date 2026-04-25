@@ -126,6 +126,7 @@ def _is_safe_path_component(name: str) -> bool:
     if "/" in name or "\\" in name:
         return False
     import re as _re
+
     return bool(_re.fullmatch(r"[A-Za-z0-9_\-]+", name))
 
 

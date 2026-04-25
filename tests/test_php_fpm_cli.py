@@ -9,15 +9,14 @@ Covers:
 - Template rendering: fastcgi_pass/SetHandler absent when php_socket is None
 """
 
-import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from typer.testing import CliRunner
 
 from vhost_helper.main import app
-from vhost_helper.models import VHostConfig, RuntimeMode, ServerType
+from vhost_helper.models import VHostConfig, RuntimeMode
 from vhost_helper.providers.nginx import NginxProvider
 from vhost_helper.providers.apache import ApacheProvider
 
@@ -341,7 +340,9 @@ class TestPhpFpmServiceOrchestration:
             ["create", "example.test", str(doc_root), "--php", "8.2"],
         )
 
-        assert "PHP-FPM Service Warning" in result.output or "php8.2-fpm" in result.output
+        assert (
+            "PHP-FPM Service Warning" in result.output or "php8.2-fpm" in result.output
+        )
 
     def test_service_success_no_warning(self, mocker, tmp_path):
         doc_root = _make_doc_root(tmp_path)

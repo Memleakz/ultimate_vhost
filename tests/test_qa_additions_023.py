@@ -13,7 +13,6 @@ Covers:
   the existing suite
 """
 
-import subprocess
 import pytest
 from typer.testing import CliRunner
 from vhost_helper.logs import extract_nginx_log_paths, extract_apache_log_paths
@@ -63,8 +62,12 @@ def mock_no_provider_env(mocker, tmp_path):
     """Both provider directories are absent so auto-detection returns None."""
     mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "no-nginx-avail")
     mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "no-nginx-enabled")
-    mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "no-apache-avail")
-    mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "no-apache-enabled")
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "no-apache-avail"
+    )
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "no-apache-enabled"
+    )
     mocker.patch("vhost_helper.main.NGINX_SITES_DISABLED", None)
     mocker.patch("vhost_helper.main.APACHE_SITES_DISABLED", None)
 
@@ -367,18 +370,16 @@ class TestLogsAccessFlagNoAccessLogInConfig:
 class TestLogsPartialLogPaths:
     """Default mode with only one log path present should tail the available one."""
 
-    def test_only_access_log_present_in_default_mode(self, mock_nginx_env, tmp_path, mocker):
+    def test_only_access_log_present_in_default_mode(
+        self, mock_nginx_env, tmp_path, mocker
+    ):
         """If error_log is absent, default mode tails only access log without error."""
         domain = "onlyaccess.test"
         access_log = tmp_path / "access.log"
         access_log.touch()
 
         conf = mock_nginx_env / f"{domain}.conf"
-        conf.write_text(
-            f"server {{\n"
-            f"    access_log {access_log};\n"
-            f"}}\n"
-        )
+        conf.write_text(f"server {{\n" f"    access_log {access_log};\n" f"}}\n")
         mocker.patch("shutil.which", return_value="/usr/bin/tail")
         mock_popen = mocker.patch("subprocess.Popen")
         mock_popen.return_value.wait.return_value = 0
@@ -388,18 +389,16 @@ class TestLogsPartialLogPaths:
         call_args = mock_popen.call_args[0][0]
         assert str(access_log) in call_args
 
-    def test_only_error_log_present_in_default_mode(self, mock_nginx_env, tmp_path, mocker):
+    def test_only_error_log_present_in_default_mode(
+        self, mock_nginx_env, tmp_path, mocker
+    ):
         """If access_log is absent, default mode tails only error log without error."""
         domain = "onlyerror.test"
         error_log = tmp_path / "error.log"
         error_log.touch()
 
         conf = mock_nginx_env / f"{domain}.conf"
-        conf.write_text(
-            f"server {{\n"
-            f"    error_log {error_log};\n"
-            f"}}\n"
-        )
+        conf.write_text(f"server {{\n" f"    error_log {error_log};\n" f"}}\n")
         mocker.patch("shutil.which", return_value="/usr/bin/tail")
         mock_popen = mocker.patch("subprocess.Popen")
         mock_popen.return_value.wait.return_value = 0
@@ -409,7 +408,9 @@ class TestLogsPartialLogPaths:
         call_args = mock_popen.call_args[0][0]
         assert str(error_log) in call_args
 
-    def test_access_log_off_error_log_exists_default_mode(self, mock_nginx_env, tmp_path, mocker):
+    def test_access_log_off_error_log_exists_default_mode(
+        self, mock_nginx_env, tmp_path, mocker
+    ):
         """access_log off means only error_log is tailed in default mode."""
         domain = "accessoff2.test"
         error_log = tmp_path / "error.log"
@@ -435,7 +436,9 @@ class TestLogsPartialLogPaths:
 class TestLogsErrorFilesMissing:
     """PRD AC: 'Log file not found at [PATH]' when file deleted after provisioning."""
 
-    def test_error_log_file_missing_default_mode(self, mock_nginx_env, tmp_path, mocker):
+    def test_error_log_file_missing_default_mode(
+        self, mock_nginx_env, tmp_path, mocker
+    ):
         """Both paths discovered but error_log file missing → exit 1 with path in message."""
         domain = "missingerr.test"
         access_log = tmp_path / "access.log"
@@ -454,8 +457,12 @@ class TestLogsErrorFilesMissing:
     def test_apache_log_file_missing_exit_1(self, mocker, tmp_path):
         enabled = tmp_path / "apache-enabled"
         enabled.mkdir()
-        mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "nginx-avail")
-        mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nginx-enabled")
+        mocker.patch(
+            "vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "nginx-avail"
+        )
+        mocker.patch(
+            "vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nginx-enabled"
+        )
         mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", enabled)
         mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", enabled)
         mocker.patch("vhost_helper.main.NGINX_SITES_DISABLED", None)
@@ -482,8 +489,12 @@ class TestLogsTailCommandStructure:
         """Regression: shell=False must hold for Apache paths too."""
         enabled = tmp_path / "apache-enabled"
         enabled.mkdir()
-        mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "nginx-avail")
-        mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nginx-enabled")
+        mocker.patch(
+            "vhost_helper.main.NGINX_SITES_AVAILABLE", tmp_path / "nginx-avail"
+        )
+        mocker.patch(
+            "vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nginx-enabled"
+        )
         mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", enabled)
         mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", enabled)
         mocker.patch("vhost_helper.main.NGINX_SITES_DISABLED", None)

@@ -6,7 +6,6 @@ from pathlib import Path
 from .models import ServerType
 from .utils import get_sudo_prefix, run_elevated_command
 
-
 # Authoritative resolution table: (os_family, server_type) → (user, group)
 _WEBSERVER_USER_TABLE: dict[tuple[str, str], tuple[str, str]] = {
     ("debian_family", ServerType.NGINX): ("www-data", "www-data"),
@@ -27,9 +26,7 @@ def resolve_webserver_user_group(
 
     Falls back to ('www-data', 'www-data') for unknown OS families.
     """
-    return _WEBSERVER_USER_TABLE.get(
-        (os_family, server_type), _FALLBACK_WEBSERVER_USER
-    )
+    return _WEBSERVER_USER_TABLE.get((os_family, server_type), _FALLBACK_WEBSERVER_USER)
 
 
 def get_current_user() -> str:

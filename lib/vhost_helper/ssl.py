@@ -93,9 +93,7 @@ def generate_certificate(domain: str, ssl_dir: Path) -> tuple[Path, Path]:
         if legacy_key.exists():
             legacy_key.rename(key_path)
         else:
-            raise RuntimeError(
-                f"mkcert succeeded but key file not found at {key_path}"
-            )
+            raise RuntimeError(f"mkcert succeeded but key file not found at {key_path}")
 
     cert_path.chmod(0o640)
     key_path.chmod(0o640)

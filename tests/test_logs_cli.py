@@ -5,7 +5,6 @@ All filesystem access and subprocess calls are fully mocked — no root access
 required.
 """
 
-import subprocess
 import pytest
 from typer.testing import CliRunner
 from vhost_helper.main import app
@@ -334,7 +333,9 @@ def test_logs_access_log_file_missing(mock_nginx_enabled, tmp_path, mocker):
     assert str(access_log) in result.stdout
 
 
-def test_logs_error_log_file_missing_with_error_flag(mock_nginx_enabled, tmp_path, mocker):
+def test_logs_error_log_file_missing_with_error_flag(
+    mock_nginx_enabled, tmp_path, mocker
+):
     """``--error`` flag targets a non-existent error log file → exit 1."""
     domain = "myapp.test"
     access_log = tmp_path / "access.log"
@@ -401,4 +402,8 @@ def test_logs_popen_uses_shell_false(mock_nginx_enabled, tmp_path, mocker):
     runner.invoke(app, ["logs", domain])
 
     call_kwargs = mock_popen.call_args[1]
-    assert call_kwargs.get("shell") is False or "shell" not in call_kwargs or call_kwargs["shell"] is False
+    assert (
+        call_kwargs.get("shell") is False
+        or "shell" not in call_kwargs
+        or call_kwargs["shell"] is False
+    )

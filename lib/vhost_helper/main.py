@@ -292,7 +292,9 @@ def create(
     resolved_file_mode = "644"
     if webroot_perms is not None:
         try:
-            resolved_dir_mode, resolved_file_mode = validate_webroot_perms(webroot_perms)
+            resolved_dir_mode, resolved_file_mode = validate_webroot_perms(
+                webroot_perms
+            )
         except ValueError as e:
             console.print(f"[red]✖[/red] {e}")
             raise typer.Exit(code=1)
@@ -360,14 +362,19 @@ def create(
         server_name = "Apache"
 
     # Resolve user/group early so both directory creation and index.html use it.
-    # Must use detected_os_family (canonical "rhel_family"/"debian_family") — NOT
-    # get_os_info().family which returns short forms ("rhel"/"debian") that do not
-    # match the lookup table keys in permissions.py.
-    from .config import detected_os_family as _detected_os_family_early
+    try:
+        os_info_early = get_os_info()
+        _detected_os_family_early = os_info_early.family
+        if not _detected_os_family_early.endswith("_family"):
+            _detected_os_family_early = f"{_detected_os_family_early}_family"
+    except Exception:
+        _detected_os_family_early = "debian_family"
+
     _effective_user = webroot_user or get_current_user()
-    _effective_group = webroot_group or resolve_webserver_user_group(
-        _detected_os_family_early, server_type
-    )[1]
+    _effective_group = (
+        webroot_group
+        or resolve_webserver_user_group(_detected_os_family_early, server_type)[1]
+    )
 
     # 1. Document root existence check — create interactively or via flags.
     dir_was_created = False
@@ -402,6 +409,7 @@ def create(
                 )
             except RuntimeError as dir_err:
                 from rich.panel import Panel as _Panel
+
                 console.print(
                     _Panel(
                         str(dir_err),
@@ -551,18 +559,18 @@ def create(
 
         # 5. Webroot permissions (steps 6–7 from authoritative workflow)
         if not skip_permissions:
-            # Use detected_os_family (from config.py / detect_os_family()) which
-            # returns the canonical "rhel_family" / "debian_family" strings that
-            # resolve_webserver_user_group() and the SELinux gate expect.
-            # get_os_info() returns short forms like "rhel" / "debian" which do
-            # NOT match the lookup table keys, causing a fallback to www-data.
-            from .config import detected_os_family as _detected_os_family
-            os_family = _detected_os_family
+            try:
+                os_info = get_os_info()
+                os_family = os_info.family
+                if not os_family.endswith("_family"):
+                    os_family = f"{os_family}_family"
+            except Exception:
+                os_family = "debian_family"
 
             effective_user = webroot_user or get_current_user()
-            effective_group = webroot_group or resolve_webserver_user_group(
-                os_family, server_type
-            )[1]
+            effective_group = (
+                webroot_group or resolve_webserver_user_group(os_family, server_type)[1]
+            )
 
             with _tracked_status(
                 "[bold green]Applying webroot permissions...", spinner="dots"
@@ -678,8 +686,10 @@ def _resolve_php_socket(php_version: Optional[str] = None) -> Optional[str]:
         (error already printed to the console by this function).
     """
     try:
-        from .config import detected_os_family as _php_os_family
-        os_family = _php_os_family
+        os_info = get_os_info()
+        os_family = os_info.family
+        if not os_family.endswith("_family"):
+            os_family = f"{os_family}_family"
     except Exception:
         os_family = "debian_family"
 
@@ -706,9 +716,7 @@ def _resolve_php_socket(php_version: Optional[str] = None) -> Optional[str]:
         return None
 
 
-def _orchestrate_php_fpm_service(
-    php_version: Optional[str], _console: Console
-) -> None:
+def _orchestrate_php_fpm_service(php_version: Optional[str], _console: Console) -> None:
     """Attempt to start the PHP-FPM service, printing a warning on failure.
 
     This function is intentionally non-blocking: a failure produces a Rich
@@ -719,8 +727,10 @@ def _orchestrate_php_fpm_service(
         _console: Rich console instance for output.
     """
     try:
-        from .config import detected_os_family as _svc_os_family
-        os_family = _svc_os_family
+        os_info = get_os_info()
+        os_family = os_info.family
+        if not os_family.endswith("_family"):
+            os_family = f"{os_family}_family"
     except Exception:
         os_family = "debian_family"
 
@@ -1383,9 +1393,7 @@ def logs(
 
     # F4 Step 1: VHost enabled check
     if not enabled_path.exists() and not enabled_path.is_symlink():
-        console.print(
-            f"[red]✖[/red] Error: VHost not found or disabled: '{domain}'"
-        )
+        console.print(f"[red]✖[/red] Error: VHost not found or disabled: '{domain}'")
         raise typer.Exit(code=1)
 
     # Read config — resolve symlink so we always get real file content

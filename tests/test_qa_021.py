@@ -10,22 +10,19 @@ Covers gaps identified during QA review:
 - Acceptance criteria verification from PRD §11 ULTIMATE_VHOST-021
 """
 
-import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from vhost_helper.main import app
-from vhost_helper.models import VHostConfig, RuntimeMode, ServerType, DEFAULT_PHP_SOCKET
+from vhost_helper.models import VHostConfig, RuntimeMode
 from vhost_helper.php_fpm import (
     PhpFpmNotFoundError,
     detect_default_version,
     resolve_socket_path,
-    validate_version_present,
-    start_service,
     get_service_name,
 )
 from vhost_helper.providers.nginx import NginxProvider
@@ -121,9 +118,11 @@ class TestVHostConfigPhpSocket:
                 document_root=doc,
                 php_socket="run/php/php8.2-fpm.sock",  # no leading /
             )
-        assert "absolute path" in str(exc_info.value).lower() or "must start with" in str(
-            exc_info.value
-        ).lower() or "/" in str(exc_info.value)
+        assert (
+            "absolute path" in str(exc_info.value).lower()
+            or "must start with" in str(exc_info.value).lower()
+            or "/" in str(exc_info.value)
+        )
 
     def test_empty_string_rejected(self, tmp_path):
         """Empty string has no leading slash — must be rejected."""
@@ -399,7 +398,15 @@ class TestMutualExclusionEdgeCases:
 
         result = runner.invoke(
             app,
-            ["create", "example.test", str(doc), "--php", "__auto__", "--runtime", "python"],
+            [
+                "create",
+                "example.test",
+                str(doc),
+                "--php",
+                "__auto__",
+                "--runtime",
+                "python",
+            ],
         )
         assert result.exit_code == 1
 
@@ -478,7 +485,7 @@ class TestOrchestratePhpFpmAutoDetectFailure:
         mocker.patch(
             "vhost_helper.main.detect_default_version",
             side_effect=[
-                "8.2",       # first call: in _resolve_php_socket for --php flag
+                "8.2",  # first call: in _resolve_php_socket for --php flag
                 PhpFpmNotFoundError("not found"),  # second call: in orchestrator
             ],
         )
@@ -505,7 +512,7 @@ class TestDetectDefaultVersionKeyError:
             patch(
                 "vhost_helper.php_fpm.glob.glob",
                 return_value=[
-                    "/run/php/phpbeta-fpm.sock",   # won't match version regex
+                    "/run/php/phpbeta-fpm.sock",  # won't match version regex
                     "/run/php/php8.1-fpm.sock",
                 ],
             ),
@@ -517,10 +524,8 @@ class TestDetectDefaultVersionKeyError:
 
     def test_version_key_with_invalid_int_falls_back_to_zero_tuple(self):
         """Inject a candidate that will fail int() conversion."""
-        import vhost_helper.php_fpm as php_fpm_module
 
         # Temporarily add a malformed candidate via monkeypatching the internal sort
-        original = php_fpm_module.detect_default_version
 
         with (
             patch(
@@ -543,13 +548,13 @@ class TestReloadServiceFallback:
     """utils.reload_service: systemctl fails, fallback succeeds or both fail."""
 
     def test_fallback_called_when_systemctl_fails(self):
-        from vhost_helper.utils import reload_service, run_elevated_command
+        from vhost_helper.utils import reload_service
 
         with patch(
             "vhost_helper.utils.run_elevated_command",
             side_effect=[
                 RuntimeError("systemctl failed"),  # first call: systemctl
-                None,                              # second call: fallback
+                None,  # second call: fallback
             ],
         ):
             # Should not raise
@@ -611,7 +616,9 @@ class TestApplySelinuxContext:
             "vhost_helper.utils.run_elevated_command",
             side_effect=RuntimeError("chcon failed"),
         ):
-            with pytest.raises(RuntimeError, match="SELinux context application failed"):
+            with pytest.raises(
+                RuntimeError, match="SELinux context application failed"
+            ):
                 apply_selinux_context(target)
 
     def test_custom_context_type_passed(self, tmp_path):
@@ -810,9 +817,7 @@ class TestAcceptanceCriteriaSmoke:
         mock_provider = MagicMock()
         mocker.patch("vhost_helper.main._get_provider", return_value=mock_provider)
 
-        result = runner.invoke(
-            app, ["create", "dev.local", str(doc), "--php", "8.2"]
-        )
+        result = runner.invoke(app, ["create", "dev.local", str(doc), "--php", "8.2"])
         assert result.exit_code == 0
         config: VHostConfig = mock_provider.create_vhost.call_args[0][0]
         assert config.php_socket == "/run/php/php8.2-fpm.sock"
@@ -830,9 +835,7 @@ class TestAcceptanceCriteriaSmoke:
             side_effect=PhpFpmNotFoundError("7.4 not found"),
         )
 
-        result = runner.invoke(
-            app, ["create", "dev.local", str(doc), "--php", "7.4"]
-        )
+        result = runner.invoke(app, ["create", "dev.local", str(doc), "--php", "7.4"])
         assert result.exit_code == 1
 
     def test_ac_coverage_gate(self):

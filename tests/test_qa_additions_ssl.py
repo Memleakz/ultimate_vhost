@@ -14,7 +14,6 @@ Targets:
   - Flaky-test guard: create_vhost symlink-exists check is resilient to selinux mock
 """
 
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -22,7 +21,7 @@ import pytest
 from jinja2 import Environment, FileSystemLoader
 from pydantic import ValidationError
 
-from vhost_helper.ssl import generate_certificate, get_ssl_dir
+from vhost_helper.ssl import generate_certificate
 from vhost_helper.models import VHostConfig, ServerType
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
@@ -134,7 +133,9 @@ class TestGenerateCertificateMissingOutputFiles:
             return result
 
         with patch("vhost_helper.ssl.shutil.which", return_value="/usr/bin/mkcert"):
-            with patch("vhost_helper.ssl.subprocess.run", side_effect=_writes_cert_only):
+            with patch(
+                "vhost_helper.ssl.subprocess.run", side_effect=_writes_cert_only
+            ):
                 with pytest.raises(RuntimeError) as exc_info:
                     generate_certificate(domain, ssl_dir)
 
@@ -382,8 +383,9 @@ class TestNginxProviderSymlinkIdempotency:
     The explicit patch ensures the test is not affected by host OS detection.
     """
 
-    def test_skips_ln_when_symlink_already_exists_explicit_debian(self, tmp_path, mocker):
-        import tempfile
+    def test_skips_ln_when_symlink_already_exists_explicit_debian(
+        self, tmp_path, mocker
+    ):
         from vhost_helper.providers.nginx import NginxProvider
 
         available = tmp_path / "sites-available"
@@ -400,9 +402,7 @@ class TestNginxProviderSymlinkIdempotency:
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", available)
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", enabled)
         mocker.patch("vhost_helper.providers.nginx.NGINX_SITES_DISABLED", None)
-        mocker.patch(
-            "vhost_helper.providers.nginx.detected_os_family", "debian_family"
-        )
+        mocker.patch("vhost_helper.providers.nginx.detected_os_family", "debian_family")
         mocker.patch(
             "vhost_helper.providers.nginx.is_selinux_enforcing", return_value=False
         )
@@ -414,9 +414,15 @@ class TestNginxProviderSymlinkIdempotency:
             elevated_calls.append(cmd_str)
             # Actually perform mv so config file exists
             import shutil
-            if cmd_str and cmd_str[-2:] and cmd_str[0] in ("sudo", "mv") or (len(cmd_str) > 1 and cmd_str[1] == "mv"):
+
+            if (
+                cmd_str
+                and cmd_str[-2:]
+                and cmd_str[0] in ("sudo", "mv")
+                or (len(cmd_str) > 1 and cmd_str[1] == "mv")
+            ):
                 pass  # don't actually run
-            verb = cmd_str[-len(cmd_str):]
+            cmd_str[-len(cmd_str) :]
             # Strip sudo prefix
             clean = cmd_str[1:] if cmd_str and cmd_str[0] == "sudo" else cmd_str
             if clean and clean[0] == "mv" and len(clean) == 3:
@@ -441,4 +447,6 @@ class TestNginxProviderSymlinkIdempotency:
         provider.create_vhost(config, service_running=True)
 
         ln_calls = [c for c in elevated_calls if "ln" in c]
-        assert not ln_calls, f"ln must NOT be called when symlink exists; got: {ln_calls}"
+        assert (
+            not ln_calls
+        ), f"ln must NOT be called when symlink exists; got: {ln_calls}"
