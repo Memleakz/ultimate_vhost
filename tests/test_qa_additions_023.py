@@ -13,10 +13,15 @@ Covers:
   the existing suite
 """
 
+import re
 import pytest
 from typer.testing import CliRunner
 from vhost_helper.logs import extract_nginx_log_paths, extract_apache_log_paths
 from vhost_helper.main import app
+
+def strip_ansi(text):
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)
 
 runner = CliRunner()
 
@@ -601,12 +606,12 @@ class TestLogsHelpText:
 
     def test_logs_help_mentions_error_flag(self):
         result = runner.invoke(app, ["logs", "--help"])
-        assert "--error" in result.stdout
+        assert "--error" in strip_ansi(result.stdout)
 
     def test_logs_help_mentions_access_flag(self):
         result = runner.invoke(app, ["logs", "--help"])
-        assert "--access" in result.stdout
+        assert "--access" in strip_ansi(result.stdout)
 
     def test_logs_help_mentions_provider_flag(self):
         result = runner.invoke(app, ["logs", "--help"])
-        assert "--provider" in result.stdout
+        assert "--provider" in strip_ansi(result.stdout)
