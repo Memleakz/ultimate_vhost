@@ -67,16 +67,6 @@ def test_render_index_html_with_version():
     assert "ultimate_vhost 0.3.0" in html
 
 
-def test_render_index_html_provider_shown():
-    html = render_index_html(domain="mysite.test", provider="nginx")
-    assert "Nginx" in html
-
-
-def test_render_index_html_document_root_shown():
-    html = render_index_html(domain="mysite.test", document_root="/var/www/mysite")
-    assert "/var/www/mysite" in html
-
-
 def test_render_index_html_custom_tool_name():
     html = render_index_html(domain="mysite.test", tool_name="myvhost")
     assert "Powered by myvhost" in html

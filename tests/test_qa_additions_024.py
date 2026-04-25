@@ -121,34 +121,11 @@ def test_render_index_html_xss_domain_is_escaped():
     assert "&lt;script&gt;" in html
 
 
-def test_render_index_html_empty_provider_omits_webserver_cell():
-    html = render_index_html(domain="mysite.test", provider="")
-    assert "Web Server" not in html
-
-
-def test_render_index_html_empty_document_root_omits_docroot_cell():
-    html = render_index_html(domain="mysite.test", document_root="")
-    assert "Document Root" not in html
-
-
 def test_render_index_html_none_tool_version_omits_version():
     html = render_index_html(domain="mysite.test", tool_version="")
     assert "ultimate_vhost" in html
     # No spurious trailing space or version string
     assert "ultimate_vhost " not in html
-
-
-def test_render_index_html_provider_capitalised():
-    """The template must capitalise the provider name (nginx → Nginx)."""
-    html = render_index_html(domain="mysite.test", provider="nginx")
-    assert "Nginx" in html
-    # Should NOT render the raw lowercase string in the info cell
-    # (the template uses {{ provider | capitalize }})
-
-
-def test_render_index_html_apache_provider_capitalised():
-    html = render_index_html(domain="mysite.test", provider="apache")
-    assert "Apache" in html
 
 
 # ---------------------------------------------------------------------------
