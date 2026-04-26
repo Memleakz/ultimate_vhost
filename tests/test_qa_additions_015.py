@@ -164,7 +164,13 @@ def test_cli_enable_success_with_service_not_running(mocker, tmp_path):
 
     assert result.exit_code == 0, f"Unexpected exit: {result.output}"
     assert mock_add.call_count == 2
-    mock_provider_enable.assert_called_once_with("example.test", service_running=False)
+    # enable now passes the resolved config Path (not the domain string) so the
+    # provider knows the actual file location — critical for Fedora/RHEL where
+    # the file lives in conf.disabled/ after a disable.
+    expected_config_path = available_dir / "example.test.conf"
+    mock_provider_enable.assert_called_once_with(
+        expected_config_path, service_running=False
+    )
     assert "enabled" in result.output.lower()
 
 

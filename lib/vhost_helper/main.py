@@ -1010,7 +1010,9 @@ def enable(
         ):
             # Pass the actual config_path so the provider knows where the file
             # currently lives (e.g. conf.disabled/ on Fedora after a disable).
-            provider_instance.enable_vhost(vhost_info.config_path, service_running=service_running)
+            provider_instance.enable_vhost(
+                vhost_info.config_path, service_running=service_running
+            )
         console.print(f"  [green]✔[/green] {server_name} configuration enabled")
 
         if service_running:
