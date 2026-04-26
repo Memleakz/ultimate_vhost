@@ -49,7 +49,7 @@ sudo dnf install -y nginx
 **2. Install VHost Helper**
 
 ```bash
-git clone https://github.com/your-repo/vhost-helper.git
+git clone https://github.com/Memleakz/ultimate_vhost.git
 cd vhost-helper/src
 sudo bash install.sh
 ```
@@ -88,7 +88,7 @@ sudo dnf install -y httpd
 **2. Install VHost Helper**
 
 ```bash
-git clone https://github.com/your-repo/vhost-helper.git
+git clone https://github.com/Memleakz/ultimate_vhost.git
 cd vhost-helper/src
 sudo bash install.sh
 ```
@@ -115,7 +115,7 @@ vhost info myapp.test
 Clone the repository and run the automated installer:
 
 ```bash
-git clone https://github.com/your-repo/vhost-helper.git
+git clone https://github.com/Memleakz/ultimate_vhost.git
 cd vhost-helper/src
 sudo bash install.sh
 ```
@@ -133,7 +133,7 @@ After installation, `vhost --help` is available from any directory.
 
 If you prefer not to use the automated installer:
 
-1. **Clone the repository**: `git clone https://github.com/your-repo/vhost-helper.git`
+1. **Clone the repository**: `git clone https://github.com/Memleakz/ultimate_vhost.git`
 2. **Create a virtual environment**: `python3 -m venv .venv`
 3. **Install dependencies**: `pip install -r requirements.txt`
 4. **Create a global symlink**: `sudo ln -s $(pwd)/bin/vhost /usr/local/bin/vhost`
@@ -455,6 +455,8 @@ After creation, navigate to `https://myapp.test` — the browser shows a green p
 
 *   **Interactive Directory Scaffolding**: When the document root is missing, `vhost create` offers to create it and generate a "It Works!" `index.html` with correct ownership — getting you to a working browser page in a single command. Fully controllable via `--create-dir`, `--no-create-dir`, `--scaffold`, and `--no-scaffold` flags for CI environments.
 *   **Atomic Hostfile Management**: Safely add or remove entries in `/etc/hosts` without corrupting existing mappings. Duplicate detection prevents double entries.
+*   **Automated Permission Management**: Automatically configures web server group ownership (`www-data`, `nginx`, `apache`, etc.), directory modes (`755`), file modes (`644`), and the SetGID bit — so you never hit a `403 Forbidden` again. SELinux context hardening (`httpd_sys_content_t`) is applied automatically on RHEL/Fedora.
+*   **Config Syntax Validation Before Reload**: Every `vhost create` and `vhost enable` runs `nginx -t` (Nginx) or `httpd -t` / `apache2ctl configtest` (Apache) before touching the live service. If the generated config is invalid, it is automatically rolled back — your web server is never left in a broken state.
 *   **Intelligent OS Detection**: Distribution-agnostic support for **Debian/Ubuntu** and **RHEL/CentOS/Fedora**.
 *   **Multi-Provider Architecture**: Native support for **Nginx** and **Apache** with intelligent auto-detection via binary and config-path scanning.
 *   **Multi-Runtime Support**: One-command provisioning for **Static HTML**, **PHP-FPM**, **Python (Gunicorn)**, and **Node.js (Reverse Proxy)** applications.
@@ -556,7 +558,7 @@ cp .env.example .env
 ### Setup Dev Environment
 
 ```bash
-git clone https://github.com/your-repo/vhost-helper.git
+git clone https://github.com/Memleakz/ultimate_vhost.git
 cd vhost-helper/src
 python3 -m venv .venv
 source .venv/bin/activate
