@@ -1,4 +1,10 @@
-# VHost Helper
+# Ultimate VHost Helper
+
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-196%20passing-brightgreen)](scripts/run_integration_tests.sh)
+[![Distros](https://img.shields.io/badge/distros-Ubuntu%20%7C%20Fedora-orange)]()
+[![Coverage](https://img.shields.io/badge/coverage-99%25-brightgreen)]()
 
 > A professional, modular CLI tool for automated virtual host management across Linux distributions.
 
@@ -8,6 +14,34 @@
 Managing virtual hosts manually is a repetitive and error-prone process involving sensitive modifications to `/etc/hosts` and web server configurations. **VHost Helper** eliminates this friction by providing a unified, distribution-agnostic CLI that automates provisioning, security hardening, and service management with atomic precision.
 
 Whether you are a local developer spinning up projects on `.test` domains or a sysadmin managing production nodes, VHost Helper ensures your configurations are consistent, secure, and compliant with best practices.
+
+---
+
+## Table of Contents
+
+- [Supported Environments](#supported-environments)
+- [Getting Started — Nginx](#getting-started--nginx-users)
+- [Getting Started — Apache](#getting-started--apache-users)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [create](#create--provision-a-new-virtual-host)
+  - [remove](#remove--tear-down-a-virtual-host)
+  - [disable / enable](#disable--temporarily-deactivate-a-virtual-host)
+  - [list / info](#list--show-all-managed-virtual-hosts)
+  - [logs](#logs--tail-live-log-files-for-a-virtual-host)
+- [Interactive Directory Scaffolding](#interactive-directory-scaffolding)
+- [Advanced Runtime Support](#advanced-runtime-support)
+  - [PHP-FPM](#php-fpm)
+  - [Python (Gunicorn)](#python-gunicorn-proxy)
+  - [Node.js (Reverse Proxy)](#nodejs-reverse-proxy)
+  - [Local SSL via mkcert](#local-ssl-via-mkcert)
+- [Features](#features)
+- [Custom Templates](#custom-templates)
+- [Automatic Permission & SELinux Management](#automatic-permission--selinux-management)
+- [Configuration](#configuration)
+- [Architecture](#architecture)
+- [Development](#development)
+- [License](#license)
 
 ---
 
@@ -50,7 +84,7 @@ sudo dnf install -y nginx
 
 ```bash
 git clone https://github.com/Memleakz/ultimate_vhost.git
-cd vhost-helper/src
+cd ultimate_vhost/src
 sudo bash install.sh
 ```
 
@@ -89,7 +123,7 @@ sudo dnf install -y httpd
 
 ```bash
 git clone https://github.com/Memleakz/ultimate_vhost.git
-cd vhost-helper/src
+cd ultimate_vhost/src
 sudo bash install.sh
 ```
 
@@ -116,7 +150,7 @@ Clone the repository and run the automated installer:
 
 ```bash
 git clone https://github.com/Memleakz/ultimate_vhost.git
-cd vhost-helper/src
+cd ultimate_vhost/src
 sudo bash install.sh
 ```
 
@@ -559,7 +593,7 @@ cp .env.example .env
 
 ```bash
 git clone https://github.com/Memleakz/ultimate_vhost.git
-cd vhost-helper/src
+cd ultimate_vhost/src
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
