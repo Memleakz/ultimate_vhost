@@ -15,6 +15,7 @@ Managing virtual hosts manually is a repetitive and error-prone process involvin
 
 Whether you are a local developer spinning up projects on `.test` domains or a sysadmin managing production nodes, VHost Helper ensures your configurations are consistent, secure, and compliant with best practices.
 
+[![asciicast](https://asciinema.org/a/t7KBEKP9nSYYJG5v.svg)](https://asciinema.org/a/t7KBEKP9nSYYJG5v)
 ---
 
 ## Table of Contents
