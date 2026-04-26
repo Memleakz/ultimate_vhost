@@ -1,6 +1,7 @@
 import typer
 import re
 import os
+import sys as _sys
 import shutil
 import subprocess
 from contextlib import contextmanager
@@ -77,7 +78,18 @@ from .scaffolding import (
 app = typer.Typer(help="VHost Helper: Unified virtual host management.")
 templates_app = typer.Typer(help="Inspect and list available Jinja2 templates.")
 app.add_typer(templates_app, name="templates")
-console = Console()
+# When stdout is not a real TTY (e.g. captured with $(...) in shell scripts or
+# piped through grep in CI), Rich falls back to 80-column width which truncates
+# table rows.  We detect that case and use the COLUMNS env var, or a generous
+# 220-column default, so list/info output is never silently cut off.
+_console_width: Optional[int] = None
+if not _sys.stdout.isatty():
+    try:
+        _console_width = int(os.environ.get("COLUMNS", "220"))
+    except (ValueError, TypeError):
+        _console_width = 220
+
+console = Console(width=_console_width)
 
 # Sentinel injected into argv when `--php` is used without a version argument.
 # The real CLI preprocesses sys.argv so `--php` alone becomes `--php __auto__`.
