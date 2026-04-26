@@ -137,6 +137,15 @@ class VHostConfig(BaseModel):
         return self
 
 
+class VHostInfo(BaseModel):
+    domain: str = Field(..., description="The primary domain name of the virtual host")
+    config_path: Path = Field(..., description="Absolute path to the virtual host configuration file")
+    server_type: ServerType = Field(..., description="The web server type (Nginx or Apache)")
+    status: str = Field(..., description="Status of the virtual host (Enabled, Disabled, or Unknown)")
+    managed_by: str = Field(..., description="Indicates if the vhost is managed by 'VHost Helper' or 'External'")
+    document_root: Optional[Path] = Field(None, description="The document root specified in the virtual host configuration")
+
+
 class OSInfo(BaseModel):
     id: str = Field(..., description="Distribution ID (e.g., ubuntu)")
     version: str = Field(..., description="Version ID (e.g., 22.04)")

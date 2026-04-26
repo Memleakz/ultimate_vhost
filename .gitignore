@@ -75,3 +75,7 @@ API_DOCS.md
 GEMINI.md
 AGENTS.md
 coverage.json
+demo.sh
+.gitignore
+.gitignore
+demo.cast

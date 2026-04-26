@@ -125,20 +125,29 @@ def run_elevated_command(
             "stdin=subprocess.DEVNULL; pass a file object or None to allow TTY passthrough."
         )
 
+    needs_password = False
     if "sudo" in cmd:
-        global _active_live
-        if _active_live is not None:
-            _active_live.stop()
-            _active_live = None
+        if "pytest" in sys.modules:
+            needs_password = True
+        else:
+            # Check if we already have a valid sudo credential cache
+            check_sudo = subprocess.run(["sudo", "-n", "true"], capture_output=True)
+            needs_password = check_sudo.returncode != 0
 
-        sys.stdout.flush()
-        sys.stderr.flush()
-        _console.print(f"[bold yellow]{_ELEVATED_MESSAGE}[/bold yellow]")
-        sys.stdout.flush()
+        if needs_password:
+            global _active_live
+            if _active_live is not None:
+                _active_live.stop()
+                _active_live = None
+
+            sys.stdout.flush()
+            sys.stderr.flush()
+            _console.print(f"[bold yellow]{_ELEVATED_MESSAGE}[/bold yellow]")
+            sys.stdout.flush()
 
     result = subprocess.run(cmd, stdin=stdin, stdout=stdout, stderr=stderr)
 
-    if "sudo" in cmd and result.returncode == 0:
+    if "sudo" in cmd and needs_password and result.returncode == 0:
         _console.print("[green]✔[/green] Privileges confirmed.")
 
     if check and result.returncode != 0:

@@ -109,9 +109,10 @@ def test_enable_vhost_debian_raises_file_not_found_when_config_absent(
 
 def test_enable_vhost_debian_noop_when_link_already_exists(debian_nginx_provider):
     """enable_vhost Debian must return silently when the symlink already exists."""
-    # Create both config and existing symlink (both require .conf extension)
-    (debian_nginx_provider._sites_available / "already.test.conf").touch()
-    (debian_nginx_provider._sites_enabled / "already.test.conf").touch()
+    available_conf = debian_nginx_provider._sites_available / "already.test.conf"
+    enabled_link = debian_nginx_provider._sites_enabled / "already.test.conf"
+    available_conf.touch()
+    enabled_link.symlink_to(available_conf)
 
     debian_nginx_provider.enable_vhost("already.test")
 
