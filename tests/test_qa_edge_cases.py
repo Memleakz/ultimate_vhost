@@ -164,7 +164,9 @@ def test_cli_remove_nginx_notification_when_stopped(mocker, tmp_path):
 
     mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", nginx_avail)
     mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nginx-enabled")
-    mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available")
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available"
+    )
     mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled")
     mocker.patch("vhost_helper.main.is_nginx_running", return_value=False)
     mocker.patch("typer.confirm", return_value=True)
@@ -183,7 +185,9 @@ def test_cli_remove_generic_error(mocker, tmp_path):
 
     mocker.patch("vhost_helper.main.NGINX_SITES_AVAILABLE", nginx_avail)
     mocker.patch("vhost_helper.main.NGINX_SITES_ENABLED", tmp_path / "nginx-enabled")
-    mocker.patch("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available")
+    mocker.patch(
+        "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "apache-available"
+    )
     mocker.patch("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "apache-enabled")
     mocker.patch("typer.confirm", return_value=True)
     mocker.patch(

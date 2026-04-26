@@ -14,14 +14,10 @@ Focuses on gaps found in coverage analysis:
   * Nginx external config with port != 80 does not cause crash
 """
 
-import os
-import stat
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 from typer.testing import CliRunner
 
-from vhost_helper.main import app, _scan_all_vhosts_locally, _find_vhost_info_for_domain
+from vhost_helper.main import app, _scan_all_vhosts_locally
 from vhost_helper.models import ServerType
 
 runner = CliRunner()
@@ -96,15 +92,24 @@ def _patch_env(monkeypatch, tmp_path):
     monkeypatch.setattr("vhost_helper.main.NGINX_SITES_DISABLED", None)
     monkeypatch.setattr("vhost_helper.main.APACHE_SITES_DISABLED", None)
 
-    monkeypatch.setattr("vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", nginx_avail)
-    monkeypatch.setattr("vhost_helper.providers.nginx.NGINX_SITES_ENABLED", nginx_enabled)
-    monkeypatch.setattr("vhost_helper.providers.apache.APACHE_SITES_AVAILABLE", apache_avail)
-    monkeypatch.setattr("vhost_helper.providers.apache.APACHE_SITES_ENABLED", apache_enabled)
+    monkeypatch.setattr(
+        "vhost_helper.providers.nginx.NGINX_SITES_AVAILABLE", nginx_avail
+    )
+    monkeypatch.setattr(
+        "vhost_helper.providers.nginx.NGINX_SITES_ENABLED", nginx_enabled
+    )
+    monkeypatch.setattr(
+        "vhost_helper.providers.apache.APACHE_SITES_AVAILABLE", apache_avail
+    )
+    monkeypatch.setattr(
+        "vhost_helper.providers.apache.APACHE_SITES_ENABLED", apache_enabled
+    )
 
     def mock_run_elevated(cmd, **kwargs):
         if cmd and cmd[0] == "sudo":
             cmd = cmd[1:]
         import subprocess
+
         return subprocess.run(cmd, **kwargs)
 
     for mod in [
@@ -116,8 +121,12 @@ def _patch_env(monkeypatch, tmp_path):
     ]:
         monkeypatch.setattr(f"{mod}.run_elevated_command", mock_run_elevated)
 
-    monkeypatch.setattr("vhost_helper.providers.apache.detected_os_family", "debian_family")
-    monkeypatch.setattr("vhost_helper.providers.nginx.detected_os_family", "debian_family")
+    monkeypatch.setattr(
+        "vhost_helper.providers.apache.detected_os_family", "debian_family"
+    )
+    monkeypatch.setattr(
+        "vhost_helper.providers.nginx.detected_os_family", "debian_family"
+    )
     monkeypatch.setattr("vhost_helper.main.is_apache_installed", lambda: True)
     monkeypatch.setattr("vhost_helper.main.is_nginx_installed", lambda: True)
     monkeypatch.setattr("vhost_helper.main.is_apache_running", lambda: False)
@@ -138,15 +147,21 @@ class TestNonStandardPorts:
 
     def test_nginx_port_8080_listed(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
-        dirs["nginx_avail"].joinpath("port8080.test.conf").write_text(NGINX_EXTERNAL_CONF_PORT8080)
+        dirs["nginx_avail"].joinpath("port8080.test.conf").write_text(
+            NGINX_EXTERNAL_CONF_PORT8080
+        )
 
-        result = runner.invoke(app, ["list", "--provider", "nginx"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "nginx"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert "port8080.test" in result.stdout
 
     def test_nginx_port_8080_info_shows_port(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
-        dirs["nginx_avail"].joinpath("port8080.test.conf").write_text(NGINX_EXTERNAL_CONF_PORT8080)
+        dirs["nginx_avail"].joinpath("port8080.test.conf").write_text(
+            NGINX_EXTERNAL_CONF_PORT8080
+        )
 
         result = runner.invoke(app, ["info", "port8080.test"], catch_exceptions=False)
         assert result.exit_code == 0
@@ -154,9 +169,13 @@ class TestNonStandardPorts:
 
     def test_apache_port_8443_listed(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
-        dirs["apache_avail"].joinpath("apache8443.test.conf").write_text(APACHE_EXTERNAL_CONF_PORT8443)
+        dirs["apache_avail"].joinpath("apache8443.test.conf").write_text(
+            APACHE_EXTERNAL_CONF_PORT8443
+        )
 
-        result = runner.invoke(app, ["list", "--provider", "apache"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "apache"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert "apache8443.test" in result.stdout
 
@@ -166,23 +185,33 @@ class TestVhostWithoutDocumentRoot:
 
     def test_nginx_no_docroot_listed(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
-        dirs["nginx_avail"].joinpath("noroot.test.conf").write_text(NGINX_EXTERNAL_CONF_NO_ROOT)
+        dirs["nginx_avail"].joinpath("noroot.test.conf").write_text(
+            NGINX_EXTERNAL_CONF_NO_ROOT
+        )
 
-        result = runner.invoke(app, ["list", "--provider", "nginx"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "nginx"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert "noroot.test" in result.stdout
 
     def test_apache_no_docroot_listed(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
-        dirs["apache_avail"].joinpath("noroot-apache.test.conf").write_text(APACHE_EXTERNAL_CONF_NO_ROOT)
+        dirs["apache_avail"].joinpath("noroot-apache.test.conf").write_text(
+            APACHE_EXTERNAL_CONF_NO_ROOT
+        )
 
-        result = runner.invoke(app, ["list", "--provider", "apache"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "apache"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert "noroot-apache.test" in result.stdout
 
     def test_nginx_no_docroot_scan_has_none_document_root(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
-        dirs["nginx_avail"].joinpath("noroot.test.conf").write_text(NGINX_EXTERNAL_CONF_NO_ROOT)
+        dirs["nginx_avail"].joinpath("noroot.test.conf").write_text(
+            NGINX_EXTERNAL_CONF_NO_ROOT
+        )
 
         results = _scan_all_vhosts_locally(filter_provider=ServerType.NGINX)
         match = next((v for v in results if v.domain == "noroot.test"), None)
@@ -196,15 +225,21 @@ class TestQuotedServerName:
 
     def test_quoted_nginx_server_name_listed(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
-        dirs["nginx_avail"].joinpath("quoted.test.conf").write_text(NGINX_EXTERNAL_CONF_QUOTED)
+        dirs["nginx_avail"].joinpath("quoted.test.conf").write_text(
+            NGINX_EXTERNAL_CONF_QUOTED
+        )
 
-        result = runner.invoke(app, ["list", "--provider", "nginx"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "nginx"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert "quoted.test" in result.stdout
 
     def test_quoted_nginx_server_name_info(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
-        dirs["nginx_avail"].joinpath("quoted.test.conf").write_text(NGINX_EXTERNAL_CONF_QUOTED)
+        dirs["nginx_avail"].joinpath("quoted.test.conf").write_text(
+            NGINX_EXTERNAL_CONF_QUOTED
+        )
 
         result = runner.invoke(app, ["info", "quoted.test"], catch_exceptions=False)
         assert result.exit_code == 0
@@ -224,8 +259,12 @@ class TestOSErrorDuringIterdir:
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_AVAILABLE", nginx_avail)
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_ENABLED", nginx_enabled)
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_DISABLED", None)
-        monkeypatch.setattr("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nope")
-        monkeypatch.setattr("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "nope2")
+        monkeypatch.setattr(
+            "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nope"
+        )
+        monkeypatch.setattr(
+            "vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "nope2"
+        )
         monkeypatch.setattr("vhost_helper.main.APACHE_SITES_DISABLED", None)
 
         original_iterdir = Path.iterdir
@@ -241,7 +280,9 @@ class TestOSErrorDuringIterdir:
         results = _scan_all_vhosts_locally(filter_provider=ServerType.NGINX)
         assert isinstance(results, list)
 
-    def test_oserror_on_enabled_iterdir_falls_back_gracefully(self, tmp_path, monkeypatch):
+    def test_oserror_on_enabled_iterdir_falls_back_gracefully(
+        self, tmp_path, monkeypatch
+    ):
         """OSError on sites-enabled iterdir means all found are shown as Disabled."""
         nginx_avail = tmp_path / "nginx" / "sites-available"
         nginx_enabled = tmp_path / "nginx" / "sites-enabled"
@@ -254,8 +295,12 @@ class TestOSErrorDuringIterdir:
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_AVAILABLE", nginx_avail)
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_ENABLED", nginx_enabled)
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_DISABLED", None)
-        monkeypatch.setattr("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nope")
-        monkeypatch.setattr("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "nope2")
+        monkeypatch.setattr(
+            "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nope"
+        )
+        monkeypatch.setattr(
+            "vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "nope2"
+        )
         monkeypatch.setattr("vhost_helper.main.APACHE_SITES_DISABLED", None)
 
         original_iterdir = Path.iterdir
@@ -289,13 +334,19 @@ class TestGeneralExceptionReadingConfig:
         valid_conf = nginx_avail.joinpath("valid.test.conf")
         valid_conf.write_text("server { listen 80; server_name valid.test; root /x; }")
         broken_conf = nginx_avail.joinpath("broken.test.conf")
-        broken_conf.write_text("server { listen 80; server_name broken.test; root /x; }")
+        broken_conf.write_text(
+            "server { listen 80; server_name broken.test; root /x; }"
+        )
 
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_AVAILABLE", nginx_avail)
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_ENABLED", nginx_enabled)
         monkeypatch.setattr("vhost_helper.main.NGINX_SITES_DISABLED", None)
-        monkeypatch.setattr("vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nope")
-        monkeypatch.setattr("vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "nope2")
+        monkeypatch.setattr(
+            "vhost_helper.main.APACHE_SITES_AVAILABLE", tmp_path / "nope"
+        )
+        monkeypatch.setattr(
+            "vhost_helper.main.APACHE_SITES_ENABLED", tmp_path / "nope2"
+        )
         monkeypatch.setattr("vhost_helper.main.APACHE_SITES_DISABLED", None)
 
         original_read_text = Path.read_text
@@ -329,7 +380,14 @@ class TestCreateBlockedForEnabledExternal:
 
         result = runner.invoke(
             app,
-            ["create", "enabled-only.test", str(web), "--provider", "nginx", "--no-scaffold"],
+            [
+                "create",
+                "enabled-only.test",
+                str(web),
+                "--provider",
+                "nginx",
+                "--no-scaffold",
+            ],
             catch_exceptions=False,
         )
         assert result.exit_code == 1
@@ -346,12 +404,22 @@ class TestListSortedOutput:
                 f"server {{ listen 80; server_name {name}; root /x; }}"
             )
 
-        result = runner.invoke(app, ["list", "--provider", "nginx"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "nginx"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         lines = result.stdout.splitlines()
-        domain_lines = [l for l in lines if any(n in l for n in ["alpha.test", "middle.test", "zebra.test"])]
+        domain_lines = [
+            line
+            for line in lines
+            if any(n in line for n in ["alpha.test", "middle.test", "zebra.test"])
+        ]
         # Extract the domain names in order they appear
-        ordered = [l for l in domain_lines if "alpha.test" in l or "middle.test" in l or "zebra.test" in l]
+        ordered = [
+            line
+            for line in domain_lines
+            if "alpha.test" in line or "middle.test" in line or "zebra.test" in line
+        ]
         domains_in_order = []
         for line in ordered:
             if "alpha.test" in line:
@@ -386,14 +454,18 @@ class TestInfoShowsManagedByField:
         dirs = _patch_env(monkeypatch, tmp_path)
         dirs["nginx_avail"].joinpath("managed.test.conf").write_text(MANAGED_NGINX_CONF)
 
-        result = runner.invoke(app, ["info", "managed-nginx.test"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["info", "managed-nginx.test"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert "VHost Helper" in result.stdout
 
     def test_info_nonexistent_domain_returns_error(self, tmp_path, monkeypatch):
         _patch_env(monkeypatch, tmp_path)
 
-        result = runner.invoke(app, ["info", "doesnotexist.test"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["info", "doesnotexist.test"], catch_exceptions=False
+        )
         assert result.exit_code == 1
         assert "No configuration found" in result.stdout
 
@@ -409,53 +481,77 @@ class TestEnableDisableCycle:
         symlink = dirs["nginx_enabled"] / "cycle.test.conf"
 
         # 1. Enable
-        result = runner.invoke(app, ["enable", "cycle.test", "--provider", "nginx"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["enable", "cycle.test", "--provider", "nginx"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert symlink.is_symlink()
         assert conf.read_bytes() == original_bytes  # content unchanged
 
         # 2. List shows Enabled
-        result = runner.invoke(app, ["list", "--provider", "nginx"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "nginx"], catch_exceptions=False
+        )
         assert "cycle.test" in result.stdout
         assert "Enabled" in result.stdout
 
         # 3. Disable
-        result = runner.invoke(app, ["disable", "cycle.test", "--provider", "nginx"], catch_exceptions=False)
+        result = runner.invoke(
+            app,
+            ["disable", "cycle.test", "--provider", "nginx"],
+            catch_exceptions=False,
+        )
         assert result.exit_code == 0
         assert not symlink.exists()
         assert conf.read_bytes() == original_bytes  # content unchanged
 
         # 4. List shows Disabled
-        result = runner.invoke(app, ["list", "--provider", "nginx"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "nginx"], catch_exceptions=False
+        )
         assert "cycle.test" in result.stdout
         assert "Disabled" in result.stdout
 
     def test_apache_full_enable_disable_cycle(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
         conf = dirs["apache_avail"].joinpath("cycle-apache.test.conf")
-        conf.write_text("<VirtualHost *:80>\n    ServerName cycle-apache.test\n    DocumentRoot /x\n</VirtualHost>\n")
+        conf.write_text(
+            "<VirtualHost *:80>\n    ServerName cycle-apache.test\n    DocumentRoot /x\n</VirtualHost>\n"
+        )
         original_bytes = conf.read_bytes()
         symlink = dirs["apache_enabled"] / "cycle-apache.test.conf"
 
         # 1. Enable
-        result = runner.invoke(app, ["enable", "cycle-apache.test", "--provider", "apache"], catch_exceptions=False)
+        result = runner.invoke(
+            app,
+            ["enable", "cycle-apache.test", "--provider", "apache"],
+            catch_exceptions=False,
+        )
         assert result.exit_code == 0
         assert symlink.is_symlink()
         assert conf.read_bytes() == original_bytes
 
         # 2. List shows Enabled
-        result = runner.invoke(app, ["list", "--provider", "apache"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "apache"], catch_exceptions=False
+        )
         assert "cycle-apache.test" in result.stdout
         assert "Enabled" in result.stdout
 
         # 3. Disable
-        result = runner.invoke(app, ["disable", "cycle-apache.test", "--provider", "apache"], catch_exceptions=False)
+        result = runner.invoke(
+            app,
+            ["disable", "cycle-apache.test", "--provider", "apache"],
+            catch_exceptions=False,
+        )
         assert result.exit_code == 0
         assert not symlink.exists()
         assert conf.read_bytes() == original_bytes
 
         # 4. List shows Disabled
-        result = runner.invoke(app, ["list", "--provider", "apache"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["list", "--provider", "apache"], catch_exceptions=False
+        )
         assert "cycle-apache.test" in result.stdout
         assert "Disabled" in result.stdout
 
@@ -468,7 +564,9 @@ class TestExternalVhostRemove:
         conf = dirs["nginx_avail"].joinpath("remove-me.test.conf")
         conf.write_text("server { listen 80; server_name remove-me.test; root /x; }")
 
-        result = runner.invoke(app, ["remove", "remove-me.test", "--force"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["remove", "remove-me.test", "--force"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert "Success!" in result.stdout
         assert not conf.exists()
@@ -476,9 +574,13 @@ class TestExternalVhostRemove:
     def test_remove_external_apache_removes_file(self, tmp_path, monkeypatch):
         dirs = _patch_env(monkeypatch, tmp_path)
         conf = dirs["apache_avail"].joinpath("remove-apache.test.conf")
-        conf.write_text("<VirtualHost *:80>\n    ServerName remove-apache.test\n    DocumentRoot /x\n</VirtualHost>\n")
+        conf.write_text(
+            "<VirtualHost *:80>\n    ServerName remove-apache.test\n    DocumentRoot /x\n</VirtualHost>\n"
+        )
 
-        result = runner.invoke(app, ["remove", "remove-apache.test", "--force"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["remove", "remove-apache.test", "--force"], catch_exceptions=False
+        )
         assert result.exit_code == 0
         assert "Success!" in result.stdout
         assert not conf.exists()

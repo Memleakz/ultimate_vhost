@@ -61,11 +61,16 @@ def test_remove_apache_vhost(mock_apache_setup):
     vhost_helper.providers.apache.ApacheProvider.remove_vhost.assert_called_once()
 
 
-def test_list_apache_vhosts(mock_apache_setup):
+def test_list_apache_vhosts(mock_apache_setup, monkeypatch):
+    monkeypatch.setenv("COLUMNS", "250")
     available, enabled = mock_apache_setup
-    (available / "site1.test.conf").write_text("DocumentRoot /var/www/site1")
+    (available / "site1.test.conf").write_text(
+        "<VirtualHost *:80>\n    ServerName site1.test\n    DocumentRoot /var/www/site1\n</VirtualHost>"
+    )
     (enabled / "site1.test.conf").touch()
-    (available / "site2.test.conf").write_text("DocumentRoot /var/www/site2")
+    (available / "site2.test.conf").write_text(
+        "<VirtualHost *:80>\n    ServerName site2.test\n    DocumentRoot /var/www/site2\n</VirtualHost>"
+    )
 
     result = runner.invoke(app, ["list"])
     assert result.exit_code == 0

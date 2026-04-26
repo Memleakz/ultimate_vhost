@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 from contextlib import contextmanager
-from typing import Optional, Union, List # Added List
+from typing import Optional, Union, List  # Added List
 from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
@@ -25,11 +25,21 @@ from .models import (
     RuntimeMode,
     PHP_SOCKET_PATHS,
     DEFAULT_PHP_SOCKET,
-    VHostInfo, # Added VHostInfo
+    VHostInfo,  # Added VHostInfo
 )
 from .hostfile import add_entry, remove_entry
-from .providers.nginx import NginxProvider, is_nginx_installed, is_nginx_running, _extract_nginx_vhost_details
-from .providers.apache import ApacheProvider, is_apache_installed, is_apache_running, _extract_apache_vhost_details
+from .providers.nginx import (
+    NginxProvider,
+    is_nginx_installed,
+    is_nginx_running,
+    _extract_nginx_vhost_details,
+)
+from .providers.apache import (
+    ApacheProvider,
+    is_apache_installed,
+    is_apache_running,
+    _extract_apache_vhost_details,
+)
 from .os_detector import get_os_info
 from .utils import set_active_live, preflight_sudo_check
 from .permissions import (
@@ -189,7 +199,9 @@ def _scan_all_vhosts_locally(
 
     # ------------------------------------------------------------------ Nginx
     if filter_provider is None or filter_provider == ServerType.NGINX:
-        nginx_dirs = [d for d in [NGINX_SITES_AVAILABLE, NGINX_SITES_ENABLED] if d is not None]
+        nginx_dirs = [
+            d for d in [NGINX_SITES_AVAILABLE, NGINX_SITES_ENABLED] if d is not None
+        ]
         if NGINX_SITES_DISABLED:
             nginx_dirs.append(NGINX_SITES_DISABLED)
 
@@ -236,7 +248,7 @@ def _scan_all_vhosts_locally(
                 domain_raw, doc_root = _extract_nginx_vhost_details(content, real_path)
                 if not domain_raw:
                     continue
-                domain_raw = domain_raw.strip('"\'')
+                domain_raw = domain_raw.strip("\"'")
                 try:
                     domain_val = validate_domain(domain_raw)
                 except ValueError:
@@ -258,7 +270,9 @@ def _scan_all_vhosts_locally(
 
     # ----------------------------------------------------------------- Apache
     if filter_provider is None or filter_provider == ServerType.APACHE:
-        apache_dirs = [d for d in [APACHE_SITES_AVAILABLE, APACHE_SITES_ENABLED] if d is not None]
+        apache_dirs = [
+            d for d in [APACHE_SITES_AVAILABLE, APACHE_SITES_ENABLED] if d is not None
+        ]
         if APACHE_SITES_DISABLED:
             apache_dirs.append(APACHE_SITES_DISABLED)
 
@@ -304,7 +318,7 @@ def _scan_all_vhosts_locally(
                 domain_raw, doc_root = _extract_apache_vhost_details(content, real_path)
                 if not domain_raw:
                     continue
-                domain_raw = domain_raw.strip('"\'')
+                domain_raw = domain_raw.strip("\"'")
                 try:
                     domain_val = validate_domain(domain_raw)
                 except ValueError:
@@ -444,9 +458,10 @@ def create(
     # Block creating managed vhost over an external one
     vhost_info = _find_vhost_info_for_domain(domain)
     if vhost_info and vhost_info.managed_by == "External":
-        console.print(f"[red]✖[/red] Error: Cannot create managed vhost. Domain '{domain}' is already used by an external virtual host.")
+        console.print(
+            f"[red]✖[/red] Error: Cannot create managed vhost. Domain '{domain}' is already used by an external virtual host."
+        )
         raise typer.Exit(code=1)
-
 
     # --skip-permissions mutual exclusivity check
     if skip_permissions and any(
@@ -565,7 +580,7 @@ def create(
             )
         else:
             # Non-TTY with no explicit flag: auto-create (safe default for pipelines)
-            L239 = do_create = True
+            do_create = True
 
         if do_create:
             preflight_sudo_check()
@@ -952,7 +967,9 @@ def enable(
         raise typer.Exit(code=1)
 
     if vhost_info.status == "Enabled":
-        console.print(f"  [yellow]⊘[/yellow] Virtual host '[cyan]{domain}[/cyan]' is already enabled.")
+        console.print(
+            f"  [yellow]⊘[/yellow] Virtual host '[cyan]{domain}[/cyan]' is already enabled."
+        )
         return
 
     server_type = vhost_info.server_type
@@ -1034,7 +1051,9 @@ def disable(
         raise typer.Exit(code=1)
 
     if vhost_info.status == "Disabled":
-        console.print(f"  [yellow]⊘[/yellow] Virtual host '[cyan]{domain}[/cyan]' is already disabled.")
+        console.print(
+            f"  [yellow]⊘[/yellow] Virtual host '[cyan]{domain}[/cyan]' is already disabled."
+        )
         return
 
     server_type = vhost_info.server_type
@@ -1169,9 +1188,13 @@ def info(
         if vhost_info.server_type == ServerType.NGINX:
             port_match = re.search(r"listen\s+(\d+)", config_content)
         else:
-            port_match = re.search(r"<VirtualHost[^>]*:(\d+)>", config_content, re.IGNORECASE)
+            port_match = re.search(
+                r"<VirtualHost[^>]*:(\d+)>", config_content, re.IGNORECASE
+            )
             if not port_match:
-                port_match = re.search(r"^\s*listen\s+(\d+)", config_content, re.IGNORECASE | re.MULTILINE)
+                port_match = re.search(
+                    r"^\s*listen\s+(\d+)", config_content, re.IGNORECASE | re.MULTILINE
+                )
         if port_match:
             port_str = port_match.group(1)
     except Exception:
